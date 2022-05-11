@@ -111,6 +111,7 @@ pub struct RPC<Id: ReqId> {
 }
 
 impl<Id: ReqId> RPC<Id> {
+    #[allow(clippy::new_without_default)]
     pub fn new() -> Self {
         let limiter = RPCRateLimiterBuilder::new()
             .n_every(Protocol::Ping, 2, Duration::from_secs(10))

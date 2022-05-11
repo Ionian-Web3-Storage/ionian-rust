@@ -361,16 +361,12 @@ impl<AppReqId: ReqId> Behaviour<AppReqId> {
                     warn!(error = ?e, "Could not publish message");
 
                     // add to metrics
-                    match topic.kind() {
-                        kind => {
-                            if let Some(v) = metrics::get_int_gauge(
-                                &metrics::FAILED_PUBLISHES_PER_MAIN_TOPIC,
-                                &[&format!("{:?}", kind)],
-                            ) {
-                                v.inc()
-                            };
-                        }
-                    }
+                    if let Some(v) = metrics::get_int_gauge(
+                        &metrics::FAILED_PUBLISHES_PER_MAIN_TOPIC,
+                        &[&format!("{:?}", topic.kind())],
+                    ) {
+                        v.inc()
+                    };
 
                     if let PublishError::InsufficientPeers = e {
                         self.gossip_cache.insert(topic, message_data);

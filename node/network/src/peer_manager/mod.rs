@@ -834,143 +834,143 @@ impl PeerManager {
 
         // 3. and 4. Remove peers that are too grouped on any given subnet. If all subnets are
         //    uniformly distributed, remove random peers.
-        if peers_to_prune.len() < connected_peer_count.saturating_sub(self.target_peers) {
-            // // Of our connected peers, build a map from subnet_id -> Vec<(PeerId, PeerInfo)>
-            // let mut subnet_to_peer: HashMap<Subnet, Vec<(PeerId, PeerInfo)>> =
-            //     HashMap::new();
-            // // These variables are used to track if a peer is in a long-lived sync-committee as we
-            // // may wish to retain this peer over others when pruning.
-            // let mut sync_committee_peer_count: HashMap<SyncSubnetId, u64> = HashMap::new();
-            // let peer_to_sync_committee: HashMap<
-            //     PeerId,
-            //     std::collections::HashSet<SyncSubnetId>,
-            // > = HashMap::new();
+        // if peers_to_prune.len() < connected_peer_count.saturating_sub(self.target_peers) {
+        //     // Of our connected peers, build a map from subnet_id -> Vec<(PeerId, PeerInfo)>
+        //     let mut subnet_to_peer: HashMap<Subnet, Vec<(PeerId, PeerInfo)>> =
+        //         HashMap::new();
+        //     // These variables are used to track if a peer is in a long-lived sync-committee as we
+        //     // may wish to retain this peer over others when pruning.
+        //     let mut sync_committee_peer_count: HashMap<SyncSubnetId, u64> = HashMap::new();
+        //     let peer_to_sync_committee: HashMap<
+        //         PeerId,
+        //         std::collections::HashSet<SyncSubnetId>,
+        //     > = HashMap::new();
 
-            // for (peer_id, _info) in self.network_globals.peers.read().connected_peers() {
-            //     // Ignore peers we are already pruning
-            //     if peers_to_prune.contains(peer_id) {
-            //         continue;
-            //     }
+        //     for (peer_id, _info) in self.network_globals.peers.read().connected_peers() {
+        //         // Ignore peers we are already pruning
+        //         if peers_to_prune.contains(peer_id) {
+        //             continue;
+        //         }
 
-            //     // Count based on long-lived subnets not short-lived subnets
-            //     // NOTE: There are only 4 sync committees. These are likely to be denser than the
-            //     // subnets, so our priority here to make the subnet peer count uniform, ignoring
-            //     // the dense sync committees.
-            //     for subnet in info.long_lived_subnets() {
-            //         match subnet {
-            //             Subnet::Attestation(_) => {
-            //                 subnet_to_peer
-            //                     .entry(subnet)
-            //                     .or_insert_with(Vec::new)
-            //                     .push((*peer_id, info.clone()));
-            //             }
-            //             Subnet::SyncCommittee(id) => {
-            //                 *sync_committee_peer_count.entry(id).or_default() += 1;
-            //                 peer_to_sync_committee
-            //                     .entry(*peer_id)
-            //                     .or_default()
-            //                     .insert(id);
-            //             }
-            //         }
-            //     }
-            // }
+        //         // Count based on long-lived subnets not short-lived subnets
+        //         // NOTE: There are only 4 sync committees. These are likely to be denser than the
+        //         // subnets, so our priority here to make the subnet peer count uniform, ignoring
+        //         // the dense sync committees.
+        //         for subnet in info.long_lived_subnets() {
+        //             match subnet {
+        //                 Subnet::Attestation(_) => {
+        //                     subnet_to_peer
+        //                         .entry(subnet)
+        //                         .or_insert_with(Vec::new)
+        //                         .push((*peer_id, info.clone()));
+        //                 }
+        //                 Subnet::SyncCommittee(id) => {
+        //                     *sync_committee_peer_count.entry(id).or_default() += 1;
+        //                     peer_to_sync_committee
+        //                         .entry(*peer_id)
+        //                         .or_default()
+        //                         .insert(id);
+        //                 }
+        //             }
+        //         }
+        //     }
 
-            // Add to the peers to prune mapping
-            while peers_to_prune.len() < connected_peer_count.saturating_sub(self.target_peers) {
-                // if let Some((_, peers_on_subnet)) = subnet_to_peer
-                //     .iter_mut()
-                //     .max_by_key(|(_, peers)| peers.len())
-                // {
-                //     // and the subnet still contains peers
-                //     if !peers_on_subnet.is_empty() {
-                //         // Order the peers by the number of subnets they are long-lived
-                //         // subscribed too, shuffle equal peers.
-                //         peers_on_subnet.shuffle(&mut rand::thread_rng());
-                //         // peers_on_subnet.sort_by_key(|(_, info)| info.long_lived_subnet_count());
+        //     // Add to the peers to prune mapping
+        //     while peers_to_prune.len() < connected_peer_count.saturating_sub(self.target_peers) {
+        //         if let Some((_, peers_on_subnet)) = subnet_to_peer
+        //             .iter_mut()
+        //             .max_by_key(|(_, peers)| peers.len())
+        //         {
+        //             // and the subnet still contains peers
+        //             if !peers_on_subnet.is_empty() {
+        //                 // Order the peers by the number of subnets they are long-lived
+        //                 // subscribed too, shuffle equal peers.
+        //                 peers_on_subnet.shuffle(&mut rand::thread_rng());
+        //                 // peers_on_subnet.sort_by_key(|(_, info)| info.long_lived_subnet_count());
 
-                //         // Try and find a candidate peer to remove from the subnet.
-                //         // We ignore peers that would put us below our target outbound peers
-                //         // and we currently ignore peers that would put us below our
-                //         // sync-committee threshold, if we can avoid it.
+        //                 // Try and find a candidate peer to remove from the subnet.
+        //                 // We ignore peers that would put us below our target outbound peers
+        //                 // and we currently ignore peers that would put us below our
+        //                 // sync-committee threshold, if we can avoid it.
 
-                //         let mut removed_peer_index = None;
-                //         for (index, (candidate_peer, info)) in peers_on_subnet.iter().enumerate() {
-                //             // Ensure we don't remove too many outbound peers
-                //             if info.is_outbound_only() {
-                //                 if self.target_outbound_peers()
-                //                     < connected_outbound_peer_count
-                //                         .saturating_sub(outbound_peers_pruned)
-                //                 {
-                //                     outbound_peers_pruned += 1;
-                //                 } else {
-                //                     // Restart the main loop with the outbound peer removed from
-                //                     // the list. This will lower the peers per subnet count and
-                //                     // potentially a new subnet may be chosen to remove peers. This
-                //                     // can occur recursively until we have no peers left to choose
-                //                     // from.
-                //                     continue;
-                //                 }
-                //             }
+        //                 let mut removed_peer_index = None;
+        //                 for (index, (candidate_peer, info)) in peers_on_subnet.iter().enumerate() {
+        //                     // Ensure we don't remove too many outbound peers
+        //                     if info.is_outbound_only() {
+        //                         if self.target_outbound_peers()
+        //                             < connected_outbound_peer_count
+        //                                 .saturating_sub(outbound_peers_pruned)
+        //                         {
+        //                             outbound_peers_pruned += 1;
+        //                         } else {
+        //                             // Restart the main loop with the outbound peer removed from
+        //                             // the list. This will lower the peers per subnet count and
+        //                             // potentially a new subnet may be chosen to remove peers. This
+        //                             // can occur recursively until we have no peers left to choose
+        //                             // from.
+        //                             continue;
+        //                         }
+        //                     }
 
-                //             // Check the sync committee
-                //             // if let Some(subnets) = peer_to_sync_committee.get(candidate_peer) {
-                //             //     // The peer is subscribed to some long-lived sync-committees
-                //             //     // Of all the subnets this peer is subscribed too, the minimum
-                //             //     // peer count of all of them is min_subnet_count
-                //             //     if let Some(min_subnet_count) = subnets
-                //             //         .iter()
-                //             //         .filter_map(|v| sync_committee_peer_count.get(v).copied())
-                //             //         .min()
-                //             //     {
-                //             //         // If the minimum count is our target or lower, we
-                //             //         // shouldn't remove this peer, because it drops us lower
-                //             //         // than our target
-                //             //         if min_subnet_count <= MIN_SYNC_COMMITTEE_PEERS {
-                //             //             // Do not drop this peer in this pruning interval
-                //             //             continue;
-                //             //         }
-                //             //     }
-                //             // }
+        //                     // Check the sync committee
+        //                     if let Some(subnets) = peer_to_sync_committee.get(candidate_peer) {
+        //                         // The peer is subscribed to some long-lived sync-committees
+        //                         // Of all the subnets this peer is subscribed too, the minimum
+        //                         // peer count of all of them is min_subnet_count
+        //                         if let Some(min_subnet_count) = subnets
+        //                             .iter()
+        //                             .filter_map(|v| sync_committee_peer_count.get(v).copied())
+        //                             .min()
+        //                         {
+        //                             // If the minimum count is our target or lower, we
+        //                             // shouldn't remove this peer, because it drops us lower
+        //                             // than our target
+        //                             if min_subnet_count <= MIN_SYNC_COMMITTEE_PEERS {
+        //                                 // Do not drop this peer in this pruning interval
+        //                                 continue;
+        //                             }
+        //                         }
+        //                     }
 
-                //             // This peer is suitable to be pruned
-                //             removed_peer_index = Some(index);
-                //             break;
-                //         }
+        //                     // This peer is suitable to be pruned
+        //                     removed_peer_index = Some(index);
+        //                     break;
+        //                 }
 
-                //         // If we have successfully found a candidate peer to prune, prune it,
-                //         // otherwise all peers on this subnet should not be removed due to our
-                //         // outbound limit or min_subnet_count. In this case, we remove all
-                //         // peers from the pruning logic and try another subnet.
-                //         if let Some(index) = removed_peer_index {
-                //             let (candidate_peer, _) = peers_on_subnet.remove(index);
-                //             // Remove pruned peers from other subnet counts
-                //             for subnet_peers in subnet_to_peer.values_mut() {
-                //                 subnet_peers.retain(|(peer_id, _)| peer_id != &candidate_peer);
-                //             }
-                //             // // Remove pruned peers from all sync-committee counts
-                //             // if let Some(known_sync_committes) =
-                //             //     peer_to_sync_committee.get(&candidate_peer)
-                //             // {
-                //             //     for sync_committee in known_sync_committes {
-                //             //         if let Some(sync_committee_count) =
-                //             //             sync_committee_peer_count.get_mut(sync_committee)
-                //             //         {
-                //             //             *sync_committee_count =
-                //             //                 sync_committee_count.saturating_sub(1);
-                //             //         }
-                //             //     }
-                //             // }
-                //             peers_to_prune.insert(candidate_peer);
-                //         } else {
-                //             peers_on_subnet.clear();
-                //         }
-                //         continue;
-                //     }
-                // }
-                // If there are no peers left to prune exit.
-                break;
-            }
-        }
+        //                 // If we have successfully found a candidate peer to prune, prune it,
+        //                 // otherwise all peers on this subnet should not be removed due to our
+        //                 // outbound limit or min_subnet_count. In this case, we remove all
+        //                 // peers from the pruning logic and try another subnet.
+        //                 if let Some(index) = removed_peer_index {
+        //                     let (candidate_peer, _) = peers_on_subnet.remove(index);
+        //                     // Remove pruned peers from other subnet counts
+        //                     for subnet_peers in subnet_to_peer.values_mut() {
+        //                         subnet_peers.retain(|(peer_id, _)| peer_id != &candidate_peer);
+        //                     }
+        //                     // Remove pruned peers from all sync-committee counts
+        //                     if let Some(known_sync_committes) =
+        //                         peer_to_sync_committee.get(&candidate_peer)
+        //                     {
+        //                         for sync_committee in known_sync_committes {
+        //                             if let Some(sync_committee_count) =
+        //                                 sync_committee_peer_count.get_mut(sync_committee)
+        //                             {
+        //                                 *sync_committee_count =
+        //                                     sync_committee_count.saturating_sub(1);
+        //                             }
+        //                         }
+        //                     }
+        //                     peers_to_prune.insert(candidate_peer);
+        //                 } else {
+        //                     peers_on_subnet.clear();
+        //                 }
+        //                 continue;
+        //             }
+        //         }
+        //         // If there are no peers left to prune exit.
+        //         break;
+        //     }
+        // }
 
         // Disconnect the pruned peers.
         for peer_id in peers_to_prune {

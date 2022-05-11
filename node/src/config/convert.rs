@@ -1,3 +1,5 @@
+#![allow(clippy::field_reassign_with_default)]
+
 use crate::IonianConfig;
 use network::NetworkConfig;
 use rpc::Config as RPCConfig;

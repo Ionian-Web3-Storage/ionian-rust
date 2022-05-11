@@ -8,10 +8,10 @@ extern crate tracing;
 use config::IonianConfig;
 use futures::channel::mpsc;
 use futures::StreamExt;
-use network::{Libp2pEvent, Service as NetworkService};
 use network::behaviour::{BehaviourEvent, Request, Response};
-use network::Context;
 use network::rpc::StatusMessage;
+use network::Context;
+use network::{Libp2pEvent, Service as NetworkService};
 use rpc::Command as RPCCommand;
 use std::error::Error;
 
@@ -41,7 +41,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
             event = network.next_event() => match event {
                 Libp2pEvent::Behaviour(BehaviourEvent::PeerConnectedIncoming(peer_id)) => {
                     info!(%peer_id, "peer connected incoming");
-                    network.send_request(peer_id.clone(), 1, Request::Status(StatusMessage{ data: 2 }));
+                    network.send_request(peer_id, 1, Request::Status(StatusMessage{ data: 2 }));
                 }
                 Libp2pEvent::Behaviour(BehaviourEvent::RequestReceived{ peer_id, id, request }) => {
                     info!(%peer_id, "request = {:?}", request);
