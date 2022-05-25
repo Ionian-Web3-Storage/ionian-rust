@@ -1,11 +1,14 @@
 #![cfg(test)]
+
 use libp2p::gossipsub::GossipsubConfigBuilder;
 use network::Enr;
 use network::EnrExt;
 use network::Multiaddr;
 use network::Service as LibP2PService;
 use network::{Libp2pEvent, NetworkConfig};
+use std::sync::Weak;
 use std::time::Duration;
+use tokio::runtime::Runtime;
 use tracing::{debug, error};
 use unused_port::unused_tcp_port;
 
@@ -58,15 +61,17 @@ pub fn build_config(port: u16, mut boot_nodes: Vec<Enr>) -> NetworkConfig {
     config
 }
 
-pub async fn build_libp2p_instance(boot_nodes: Vec<Enr>) -> Libp2pInstance {
+pub async fn build_libp2p_instance(rt: Weak<Runtime>, boot_nodes: Vec<Enr>) -> Libp2pInstance {
     let port = unused_tcp_port().unwrap();
     let config = build_config(port, boot_nodes);
     // launch libp2p service
 
-    let (signal, _exit) = exit_future::signal();
+    let (signal, exit) = exit_future::signal();
+    let (shutdown_tx, _) = futures::channel::mpsc::channel(1);
+    let executor = task_executor::TaskExecutor::new(rt, exit, shutdown_tx);
     let libp2p_context = network::Context { config: &config };
     Libp2pInstance(
-        LibP2PService::new(libp2p_context)
+        LibP2PService::new(executor, libp2p_context)
             .await
             .expect("should build libp2p instance")
             .1,
@@ -81,10 +86,10 @@ pub fn get_enr(node: &LibP2PService<ReqId>) -> Enr {
 
 // Returns `n` libp2p peers in fully connected topology.
 #[allow(dead_code)]
-pub async fn build_full_mesh(n: usize) -> Vec<Libp2pInstance> {
+pub async fn build_full_mesh(rt: Weak<Runtime>, n: usize) -> Vec<Libp2pInstance> {
     let mut nodes = Vec::with_capacity(n);
     for _ in 0..n {
-        nodes.push(build_libp2p_instance(vec![]).await);
+        nodes.push(build_libp2p_instance(rt.clone(), vec![]).await);
     }
     let multiaddrs: Vec<Multiaddr> = nodes
         .iter()
@@ -107,9 +112,9 @@ pub async fn build_full_mesh(n: usize) -> Vec<Libp2pInstance> {
 // Constructs a pair of nodes with separate loggers. The sender dials the receiver.
 // This returns a (sender, receiver) pair.
 #[allow(dead_code)]
-pub async fn build_node_pair() -> (Libp2pInstance, Libp2pInstance) {
-    let mut sender = build_libp2p_instance(vec![]).await;
-    let mut receiver = build_libp2p_instance(vec![]).await;
+pub async fn build_node_pair(rt: Weak<Runtime>) -> (Libp2pInstance, Libp2pInstance) {
+    let mut sender = build_libp2p_instance(rt.clone(), vec![]).await;
+    let mut receiver = build_libp2p_instance(rt, vec![]).await;
 
     let receiver_multiaddr = receiver.swarm.behaviour_mut().local_enr().multiaddr()[1].clone();
 
@@ -148,10 +153,10 @@ pub async fn build_node_pair() -> (Libp2pInstance, Libp2pInstance) {
 
 // Returns `n` peers in a linear topology
 #[allow(dead_code)]
-pub async fn build_linear(n: usize) -> Vec<Libp2pInstance> {
+pub async fn build_linear(rt: Weak<Runtime>, n: usize) -> Vec<Libp2pInstance> {
     let mut nodes = Vec::with_capacity(n);
     for _ in 0..n {
-        nodes.push(build_libp2p_instance(vec![]).await);
+        nodes.push(build_libp2p_instance(rt.clone(), vec![]).await);
     }
 
     let multiaddrs: Vec<Multiaddr> = nodes

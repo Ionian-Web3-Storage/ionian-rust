@@ -8,5 +8,9 @@ edition = "2021"
 [dependencies]
 futures = "0.3.21"
 jsonrpsee = { version = "0.11.0", features = ["full"] }
+network = { path = "../network" }
 serde = { version = "1.0.137", features = ["derive"] }
+service = { path = "../service" }
+task_executor = { path = "../../common/task_executor" }
+tokio = { version = "1.17.0", features = ["macros", "sync"] }
 tracing = "0.1.34"

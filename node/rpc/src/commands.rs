@@ -1,3 +1,0 @@
-pub enum Command {
-    SendStatus,
-}

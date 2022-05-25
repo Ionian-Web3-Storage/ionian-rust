@@ -1,67 +1,74 @@
-mod cli;
-mod config;
-mod log;
-
 #[macro_use]
 extern crate tracing;
 
+mod cli;
+mod client;
+mod config;
+mod log;
+
+use client::{Client, ClientBuilder, RuntimeContext};
 use config::IonianConfig;
-use futures::channel::mpsc;
-use futures::StreamExt;
-use network::behaviour::{BehaviourEvent, Request, Response};
-use network::rpc::StatusMessage;
-use network::Context;
-use network::{Libp2pEvent, Service as NetworkService};
-use rpc::Command as RPCCommand;
 use std::error::Error;
 
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn Error>> {
+async fn start_node(context: RuntimeContext, config: IonianConfig) -> Result<Client, String> {
+    let network_config = config.network_config()?;
+    let rpc_config = config.rpc_config()?;
+
+    ClientBuilder::new()
+        .runtime_context(context)
+        .network(&network_config)
+        .await?
+        .rpc(rpc_config)
+        .await?
+        .build()
+}
+
+fn main() -> Result<(), Box<dyn Error>> {
+    // runtime environment
+    let mut environment = client::EnvironmentBuilder::new()
+        .multi_threaded_tokio_runtime()?
+        .build()?;
+
+    let context = environment.core_context();
+    let executor = context.executor.clone();
+
+    // CLI, config, and logs
     let matches = cli::cli_app().get_matches();
     let config = IonianConfig::parse(&matches)?;
-    log::configure(&config.log_config_file);
+    log::configure(&config.log_config_file, executor.clone());
 
-    // start RPC
-    let (rpc_sender, mut rpc_receiver) = mpsc::channel(0);
-    let rpc_config = config.rpc_config()?;
-    let _rpc_handle = rpc::run_server(&rpc_config, rpc_sender).await?;
+    // start services
+    executor.clone().spawn(
+        async move {
+            info!("Starting services...");
+            if let Err(e) = start_node(context.clone(), config).await {
+                error!(reason = %e, "Failed to start ionian node");
+                // Ignore the error since it always occurs during normal operation when
+                // shutting down.
+                let _ =
+                    executor
+                        .shutdown_sender()
+                        .try_send(task_executor::ShutdownReason::Failure(
+                            "Failed to start ionian node",
+                        ));
+            } else {
+                info!("Services started");
+            }
+        },
+        "ionian_node",
+    );
 
-    // start network
-    let network_config = config.network_config()?;
+    // Block this thread until we get a ctrl-c or a task sends a shutdown signal.
+    let shutdown_reason = environment.block_until_shutdown_requested()?;
+    info!(reason = ?shutdown_reason, "Shutting down...");
 
-    let service_context = Context {
-        config: &network_config,
-    };
+    environment.fire_signal();
 
-    let (_network_globals, mut network) = NetworkService::<usize>::new(service_context).await?;
+    // Shutdown the environment once all tasks have completed.
+    environment.shutdown_on_idle();
 
-    // event loop
-    loop {
-        tokio::select! {
-            event = network.next_event() => match event {
-                Libp2pEvent::Behaviour(BehaviourEvent::PeerConnectedIncoming(peer_id)) => {
-                    info!(%peer_id, "peer connected incoming");
-                    network.send_request(peer_id, 1, Request::Status(StatusMessage{ data: 2 }));
-                }
-                Libp2pEvent::Behaviour(BehaviourEvent::RequestReceived{ peer_id, id, request }) => {
-                    info!(%peer_id, "request = {:?}", request);
-                    network.send_response(peer_id, id, Response::Status(StatusMessage{ data: 3 }));
-                }
-                Libp2pEvent::Behaviour(BehaviourEvent::ResponseReceived{ peer_id, id: _, response }) => {
-                    info!(%peer_id, "response = {:?}", response);
-                }
-                e => {
-                    info!("event = {:?}", e);
-                }
-            },
-            command = rpc_receiver.next() => match command {
-                Some(RPCCommand::SendStatus) => {
-                    info!("Hello!");
-                },
-                None => break,
-            },
-        }
+    match shutdown_reason {
+        task_executor::ShutdownReason::Success(_) => Ok(()),
+        task_executor::ShutdownReason::Failure(msg) => Err(msg.to_string().into()),
     }
-
-    Ok(())
 }

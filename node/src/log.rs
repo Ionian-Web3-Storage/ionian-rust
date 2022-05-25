@@ -1,8 +1,12 @@
+use task_executor::TaskExecutor;
+use tracing::Level;
 use tracing_subscriber::EnvFilter;
 
-pub fn configure(logfile: &str) {
+const LOG_RELOAD_PERIOD_SEC: u64 = 30;
+
+pub fn configure(logfile: &str, executor: TaskExecutor) {
     let builder = tracing_subscriber::fmt()
-        .with_max_level(tracing::Level::TRACE)
+        .with_max_level(Level::TRACE)
         .with_env_filter(EnvFilter::default())
         // .with_file(true)
         // .with_line_number(true)
@@ -14,30 +18,38 @@ pub fn configure(logfile: &str) {
 
     let logfile = logfile.to_string();
 
-    tokio::spawn(async move {
-        let mut config = "".to_string();
-        let mut interval = tokio::time::interval(std::time::Duration::from_secs(5));
+    // load config synchronously
+    let mut config = std::fs::read_to_string(&logfile).unwrap_or_default();
+    let _ = handle.reload(&config);
 
-        loop {
-            interval.tick().await;
+    // periodically check for config changes
+    executor.spawn(
+        async move {
+            let mut interval =
+                tokio::time::interval(std::time::Duration::from_secs(LOG_RELOAD_PERIOD_SEC));
 
-            let new_config = match tokio::fs::read_to_string(&logfile).await {
-                Ok(c) if c == config => continue,
-                Ok(c) => c,
-                Err(e) => {
-                    println!("Unable to read log file {}: {:?}", logfile, e);
-                    continue;
-                }
-            };
+            loop {
+                interval.tick().await;
 
-            println!("Updating log config to {:?}", new_config);
+                let new_config = match tokio::fs::read_to_string(&logfile).await {
+                    Ok(c) if c == config => continue,
+                    Ok(c) => c,
+                    Err(e) => {
+                        println!("Unable to read log file {}: {:?}", logfile, e);
+                        continue;
+                    }
+                };
 
-            match handle.reload(&new_config) {
-                Ok(()) => config = new_config,
-                Err(e) => {
-                    println!("Failed to load new config: {:?}", e);
+                println!("Updating log config to {:?}", new_config);
+
+                match handle.reload(&new_config) {
+                    Ok(()) => config = new_config,
+                    Err(e) => {
+                        println!("Failed to load new config: {:?}", e);
+                    }
                 }
             }
-        }
-    });
+        },
+        "log_reload",
+    );
 }

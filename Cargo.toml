@@ -4,10 +4,12 @@ members = [
     "common/directory",
     "common/hashset_delay",
     "common/lighthouse_metrics",
+    "common/task_executor",
     "common/ionian_version",
     "common/unused_port",
 
     "node",
     "node/network",
     "node/rpc",
+    "node/service",
 ]

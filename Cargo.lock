@@ -1690,12 +1690,17 @@ name = "ionian_node"
 version = "0.1.0"
 dependencies = [
  "clap",
+ "error-chain",
+ "exit-future",
  "futures",
  "ionian_version",
  "libp2p 0.44.0",
  "network",
  "rpc",
+ "service",
+ "task_executor",
  "tokio",
+ "tokio-stream",
  "toml",
  "tracing",
  "tracing-subscriber",
@@ -2996,6 +3001,7 @@ dependencies = [
  "smallvec",
  "snap",
  "strum",
+ "task_executor",
  "tempfile",
  "tiny-keccak",
  "tokio",
@@ -3671,7 +3677,11 @@ version = "0.1.0"
 dependencies = [
  "futures",
  "jsonrpsee",
+ "network",
  "serde",
+ "service",
+ "task_executor",
+ "tokio",
  "tracing",
 ]
 
@@ -3866,6 +3876,19 @@ dependencies = [
  "itoa",
  "ryu",
  "serde",
+]
+
+[[package]]
+name = "service"
+version = "0.1.0"
+dependencies = [
+ "error-chain",
+ "futures",
+ "network",
+ "task_executor",
+ "tokio",
+ "tokio-stream",
+ "tracing",
 ]
 
 [[package]]
@@ -4171,6 +4194,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c63f48baada5c52e65a29eef93ab4f8982681b67f9e8d29c7b05abcfec2b9ffe"
 
 [[package]]
+name = "task_executor"
+version = "0.1.0"
+dependencies = [
+ "exit-future",
+ "futures",
+ "lazy_static",
+ "lighthouse_metrics",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "tempfile"
 version = "3.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4342,6 +4377,7 @@ dependencies = [
  "futures-core",
  "pin-project-lite 0.2.9",
  "tokio",
+ "tokio-util 0.6.9",
 ]
 
 [[package]]

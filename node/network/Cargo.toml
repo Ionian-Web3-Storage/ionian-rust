@@ -30,6 +30,7 @@ sha2 = "0.9.1"
 smallvec = "1.6.1"
 snap = "1.0.1"
 strum = { version = "0.24.0", features = ["derive"] }
+task_executor = { path = "../../common/task_executor" }
 tiny-keccak = "2.0.2"
 tokio = { version = "1.14.0", features = ["time", "macros"] }
 tokio-io-timeout = "1.1.1"

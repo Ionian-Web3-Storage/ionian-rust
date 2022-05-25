@@ -2,7 +2,7 @@
 
 use crate::IonianConfig;
 use network::NetworkConfig;
-use rpc::Config as RPCConfig;
+use rpc::RPCConfig;
 
 impl IonianConfig {
     pub fn network_config(&self) -> Result<NetworkConfig, String> {
@@ -42,6 +42,9 @@ impl IonianConfig {
             .parse::<std::net::SocketAddr>()
             .map_err(|e| format!("Unable to parse rpc_listen_address: {:?}", e))?;
 
-        Ok(RPCConfig { listen_address })
+        Ok(RPCConfig {
+            enabled: self.rpc_enabled,
+            listen_address,
+        })
     }
 }

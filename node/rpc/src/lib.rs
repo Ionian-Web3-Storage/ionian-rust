@@ -1,33 +1,48 @@
-mod api;
-mod commands;
-mod config;
-mod error;
-mod r#impl;
-mod types;
-
 #[macro_use]
 extern crate tracing;
 
-use api::RpcServer;
-use futures::channel::mpsc;
+mod admin;
+mod config;
+mod error;
+mod ionian;
+mod types;
+
+use futures::channel::mpsc::Sender;
 use jsonrpsee::http_server::{HttpServerBuilder, HttpServerHandle};
-use r#impl::RpcServerImpl;
+use network::NetworkGlobals;
+use service::NetworkMessage;
 use std::error::Error;
+use std::sync::Arc;
+use task_executor::ShutdownReason;
+use tokio::sync::mpsc::UnboundedSender;
 
-pub use commands::Command;
-pub use config::Config;
+use admin::RpcServer as AdminRpcServer;
+use ionian::RpcServer as IonianRpcServer;
 
-pub async fn run_server(
-    config: &Config,
-    command_sender: mpsc::Sender<Command>,
-) -> Result<HttpServerHandle, Box<dyn Error>> {
+pub use config::Config as RPCConfig;
+
+/// A wrapper around all the items required to spawn the HTTP server.
+///
+/// The server will gracefully handle the case where any fields are `None`.
+#[derive(Clone)]
+pub struct Context {
+    pub config: RPCConfig,
+    pub network_tx: Option<UnboundedSender<NetworkMessage>>,
+    pub network_globals: Option<Arc<NetworkGlobals>>,
+    pub shutdown_sender: Sender<ShutdownReason>,
+}
+
+pub async fn run_server(ctx: Context) -> Result<HttpServerHandle, Box<dyn Error>> {
     let server = HttpServerBuilder::default()
-        .build(config.listen_address)
+        .build(ctx.config.listen_address)
         .await?;
 
+    let mut ionian = (ionian::RpcServerImpl { ctx: ctx.clone() }).into_rpc();
+    let admin = (admin::RpcServerImpl { ctx }).into_rpc();
+    ionian.merge(admin)?;
+
     let addr = server.local_addr()?;
-    let rpc_impl = RpcServerImpl { command_sender };
-    let handle = server.start(rpc_impl.into_rpc())?;
+    let handle = server.start(ionian)?;
     info!("Server started http://{}", addr);
 
     Ok(handle)

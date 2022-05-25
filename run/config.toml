@@ -6,6 +6,7 @@ network_boot_nodes = []
 network_libp2p_nodes = []
 network_private = false
 
+rpc_enabled = true
 rpc_listen_address = "127.0.0.1:5678"
 
 log_config_file = "log_config"

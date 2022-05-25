@@ -1,0 +1,13 @@
+[package]
+name = "service"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+error-chain = "0.12.4"
+futures = "0.3.21"
+network = { path = "../network" }
+task_executor = { path = "../../common/task_executor" }
+tokio = { version = "1.18.2", features = ["full"] }
+tokio-stream = { version = "0.1.8", features = ["sync"] }
+tracing = "0.1.34"

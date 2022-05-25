@@ -5,11 +5,16 @@ edition = "2021"
 
 [dependencies]
 clap = { version = "3.1.12", features = ["cargo"] }
+error-chain = "0.12.4"
+exit-future = "0.2.0"
 futures = "0.3.21"
 ionian_version = { path = "../common/ionian_version" }
 network = { path = "./network" }
 rpc = { path = "./rpc" }
+service = { path = "./service" }
+task_executor = { path = "../common/task_executor" }
 tokio = { version = "1.17.0", features = ["full"] }
+tokio-stream = { version = "0.1.8", features = ["sync"] }
 toml = "0.5.9"
 tracing = "0.1.34"
 tracing-subscriber = { version = "0.3.11", features = ["env-filter"] }

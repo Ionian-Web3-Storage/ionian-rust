@@ -22,8 +22,8 @@ pub(crate) use protocol::{InboundRequest, RPCProtocol};
 
 pub use handler::SubstreamId;
 pub use methods::{
-    GoodbyeReason, IonianData, MaxRequestBlocks, RPCResponseErrorCode, ResponseTermination,
-    StatusMessage, MAX_REQUEST_BLOCKS,
+    DataByHashRequest, GoodbyeReason, IonianData, MaxRequestBlocks, RPCResponseErrorCode,
+    ResponseTermination, StatusMessage, MAX_REQUEST_BLOCKS,
 };
 pub(crate) use outbound::OutboundRequest;
 pub use protocol::{max_rpc_size, Protocol, RPCError};

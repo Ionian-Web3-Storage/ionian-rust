@@ -18,6 +18,7 @@ use libp2p::{
 };
 use std::fs::File;
 use std::io::prelude::*;
+use std::pin::Pin;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -55,7 +56,10 @@ pub struct Context<'a> {
 }
 
 impl<AppReqId: ReqId> Service<AppReqId> {
-    pub async fn new(ctx: Context<'_>) -> error::Result<(Arc<NetworkGlobals>, Self)> {
+    pub async fn new(
+        executor: task_executor::TaskExecutor,
+        ctx: Context<'_>,
+    ) -> error::Result<(Arc<NetworkGlobals>, Self)> {
         trace!("Libp2p Service starting");
 
         let config = ctx.config;
@@ -106,6 +110,14 @@ impl<AppReqId: ReqId> Service<AppReqId> {
             // Lighthouse network behaviour
             let behaviour = Behaviour::new(&local_keypair, ctx, network_globals.clone()).await?;
 
+            // use the executor for libp2p
+            struct Executor(task_executor::TaskExecutor);
+            impl libp2p::core::Executor for Executor {
+                fn exec(&self, f: Pin<Box<dyn Future<Output = ()> + Send>>) {
+                    self.0.spawn(f, "libp2p");
+                }
+            }
+
             // sets up the libp2p connection limits
             let limits = ConnectionLimits::default()
                 .with_max_pending_incoming(Some(5))
@@ -129,9 +141,7 @@ impl<AppReqId: ReqId> Service<AppReqId> {
                     .notify_handler_buffer_size(std::num::NonZeroUsize::new(7).expect("Not zero"))
                     .connection_event_buffer_size(64)
                     .connection_limits(limits)
-                    .executor(Box::new(|fut| {
-                        tokio::spawn(fut);
-                    }))
+                    .executor(Box::new(Executor(executor)))
                     .build(),
                 bandwidth,
             )
