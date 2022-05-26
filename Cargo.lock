@@ -3008,7 +3008,6 @@ dependencies = [
  "tokio-io-timeout",
  "tokio-util 0.6.9",
  "tracing",
- "tracing-subscriber",
  "tracing-test",
  "unsigned-varint 0.6.0",
  "unused_port",

@@ -36,10 +36,7 @@ tokio = { version = "1.14.0", features = ["time", "macros"] }
 tokio-io-timeout = "1.1.1"
 tokio-util = { version = "0.6.2", features = ["codec", "compat", "time"] }
 tracing = "0.1.34"
-tracing-subscriber = "0.3.11"
-tracing-test = "0.2.1"
 unsigned-varint = { version = "0.6.0", features = ["codec"] }
-unused_port = { path = "../../common/unused_port" }
 
 [dependencies.libp2p]
 version = "0.43.0"
@@ -47,8 +44,10 @@ default-features = false
 features = ["websocket", "identify", "mplex", "yamux", "noise", "gossipsub", "dns-tokio", "tcp-tokio", "plaintext", "secp256k1"]
 
 [dev-dependencies]
-slog-term = "2.6.0"
-slog-async = "2.5.0"
-tempfile = "3.1.0"
 exit-future = "0.2.0"
+slog-async = "2.5.0"
+slog-term = "2.6.0"
+tempfile = "3.1.0"
+tracing-test = "0.2.1"
+unused_port = { path = "../../common/unused_port" }
 void = "1"
