@@ -10,7 +10,7 @@ mod types;
 use futures::channel::mpsc::Sender;
 use jsonrpsee::http_server::{HttpServerBuilder, HttpServerHandle};
 use network::NetworkGlobals;
-use service::NetworkMessage;
+use shared_types::ServiceMessage;
 use std::error::Error;
 use std::sync::Arc;
 use task_executor::ShutdownReason;
@@ -27,7 +27,7 @@ pub use config::Config as RPCConfig;
 #[derive(Clone)]
 pub struct Context {
     pub config: RPCConfig,
-    pub network_tx: Option<UnboundedSender<NetworkMessage>>,
+    pub network_tx: Option<UnboundedSender<ServiceMessage>>,
     pub network_globals: Option<Arc<NetworkGlobals>>,
     pub shutdown_sender: Sender<ShutdownReason>,
 }

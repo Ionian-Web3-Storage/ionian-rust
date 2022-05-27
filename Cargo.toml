@@ -9,7 +9,11 @@ members = [
     "common/unused_port",
 
     "node",
+    "node/miner",
     "node/network",
     "node/rpc",
     "node/service",
+    "node/shared_types",
+    "node/store",
+    "node/sync",
 ]

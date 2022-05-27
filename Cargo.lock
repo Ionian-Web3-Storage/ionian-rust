@@ -1698,6 +1698,7 @@ dependencies = [
  "network",
  "rpc",
  "service",
+ "shared_types",
  "task_executor",
  "tokio",
  "tokio-stream",
@@ -2758,6 +2759,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "miner"
+version = "0.1.0"
+dependencies = [
+ "network",
+ "shared_types",
+ "task_executor",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "miniz_oxide"
 version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3678,7 +3690,7 @@ dependencies = [
  "jsonrpsee",
  "network",
  "serde",
- "service",
+ "shared_types",
  "task_executor",
  "tokio",
  "tracing",
@@ -3883,7 +3895,10 @@ version = "0.1.0"
 dependencies = [
  "error-chain",
  "futures",
+ "miner",
  "network",
+ "shared_types",
+ "sync",
  "task_executor",
  "tokio",
  "tokio-stream",
@@ -3946,6 +3961,13 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "900fba806f70c630b0a382d0d825e17a0f19fcd059a2ade1ff237bcddf446b31"
 dependencies = [
  "lazy_static",
+]
+
+[[package]]
+name = "shared_types"
+version = "0.1.0"
+dependencies = [
+ "network",
 ]
 
 [[package]]
@@ -4097,6 +4119,14 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a2eb9349b6444b326872e140eb1cf5e7c522154d69e7a0ffb0fb81c06b37543f"
 
 [[package]]
+name = "store"
+version = "0.1.0"
+dependencies = [
+ "error-chain",
+ "tracing",
+]
+
+[[package]]
 name = "strsim"
 version = "0.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4139,6 +4169,17 @@ dependencies = [
  "proc-macro2",
  "quote",
  "unicode-xid",
+]
+
+[[package]]
+name = "sync"
+version = "0.1.0"
+dependencies = [
+ "network",
+ "shared_types",
+ "task_executor",
+ "tokio",
+ "tracing",
 ]
 
 [[package]]

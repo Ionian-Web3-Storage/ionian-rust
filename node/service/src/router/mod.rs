@@ -7,10 +7,10 @@
 mod processor;
 
 use crate::error;
-use crate::service::{NetworkMessage, RequestId};
 use futures::prelude::*;
 use network::{MessageId, NetworkGlobals, PeerId, PeerRequestId, PubsubMessage, Request, Response};
 use processor::Processor;
+use shared_types::{RequestId, ServiceMessage};
 use std::sync::Arc;
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::UnboundedReceiverStream;
@@ -64,7 +64,7 @@ impl Router {
     /// Initializes and runs the Router.
     pub fn spawn(
         network_globals: Arc<NetworkGlobals>,
-        network_send: mpsc::UnboundedSender<NetworkMessage>,
+        network_send: mpsc::UnboundedSender<ServiceMessage>,
         executor: task_executor::TaskExecutor,
     ) -> error::Result<mpsc::UnboundedSender<RouterMessage>> {
         trace!("Service starting");

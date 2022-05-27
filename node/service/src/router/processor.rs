@@ -1,7 +1,9 @@
-use crate::service::{NetworkMessage, RequestId};
+use miner::{MinerMessage, MinerService};
 use network::rpc::*;
 use network::{MessageId, NetworkGlobals, PeerId, PeerRequestId, Request, Response};
+use shared_types::{RequestId, ServiceMessage};
 use std::sync::Arc;
+use sync::{SyncMessage, SyncService};
 use tokio::sync::mpsc;
 
 /// Processes validated messages from the network. It relays necessary data to the syncing thread
@@ -9,43 +11,31 @@ use tokio::sync::mpsc;
 pub struct Processor {
     /// A network context to return and handle RPC requests.
     network: HandlerNetworkContext,
+
+    /// A channel to the syncing thread.
+    #[allow(dead_code)]
+    sync_send: mpsc::UnboundedSender<SyncMessage>,
+
+    /// A channel to the miner thread.
+    #[allow(dead_code)]
+    miner_send: mpsc::UnboundedSender<MinerMessage>,
 }
 
 impl Processor {
     /// Instantiate a `Processor` instance
     pub fn new(
-        _executor: task_executor::TaskExecutor,
+        executor: task_executor::TaskExecutor,
         _network_globals: Arc<NetworkGlobals>,
-        network_send: mpsc::UnboundedSender<NetworkMessage>,
+        network_send: mpsc::UnboundedSender<ServiceMessage>,
     ) -> Self {
-        // let (beacon_processor_send, beacon_processor_receive) =
-        //     mpsc::channel(MAX_WORK_EVENT_QUEUE_LEN);
-
-        // spawn the sync thread
-        // let sync_send = crate::sync::manager::spawn(
-        //     executor.clone(),
-        //     beacon_chain.clone(),
-        //     network_globals.clone(),
-        //     network_send.clone(),
-        //     beacon_processor_send.clone(),
-        //     sync_logger,
-        // );
-
-        // BeaconProcessor {
-        //     beacon_chain: Arc::downgrade(&beacon_chain),
-        //     network_tx: network_send.clone(),
-        //     sync_tx: sync_send.clone(),
-        //     network_globals,
-        //     executor,
-        //     max_workers: cmp::max(1, num_cpus::get()),
-        //     current_workers: 0,
-        //     importing_blocks: Default::default(),
-        //     log: log.clone(),
-        // }
-        // .spawn_manager(beacon_processor_receive, None);
+        // spawn services
+        let sync_send = SyncService::spawn(executor.clone(), network_send.clone());
+        let miner_send = MinerService::spawn(executor, network_send.clone());
 
         Processor {
             network: HandlerNetworkContext::new(network_send),
+            sync_send,
+            miner_send,
         }
     }
 
@@ -127,16 +117,16 @@ impl Processor {
 #[derive(Clone)]
 pub struct HandlerNetworkContext {
     /// The network channel to relay messages to the Network service.
-    network_send: mpsc::UnboundedSender<NetworkMessage>,
+    network_send: mpsc::UnboundedSender<ServiceMessage>,
 }
 
 impl HandlerNetworkContext {
-    pub fn new(network_send: mpsc::UnboundedSender<NetworkMessage>) -> Self {
+    pub fn new(network_send: mpsc::UnboundedSender<ServiceMessage>) -> Self {
         Self { network_send }
     }
 
     /// Sends a message to the network task.
-    fn inform_network(&mut self, msg: NetworkMessage) {
+    fn inform_network(&mut self, msg: ServiceMessage) {
         self.network_send
             .send(msg)
             .unwrap_or_else(|e| warn!(error = %e, "Could not send message to the network service"))
@@ -144,7 +134,7 @@ impl HandlerNetworkContext {
 
     /// Sends a request to the network task.
     pub fn send_processor_request(&mut self, peer_id: PeerId, request: Request) {
-        self.inform_network(NetworkMessage::SendRequest {
+        self.inform_network(ServiceMessage::SendRequest {
             peer_id,
             request_id: RequestId::Router,
             request,
@@ -153,7 +143,7 @@ impl HandlerNetworkContext {
 
     /// Sends a response to the network task.
     pub fn send_response(&mut self, peer_id: PeerId, response: Response, id: PeerRequestId) {
-        self.inform_network(NetworkMessage::SendResponse {
+        self.inform_network(ServiceMessage::SendResponse {
             peer_id,
             id,
             response,
@@ -168,7 +158,7 @@ impl HandlerNetworkContext {
         error: RPCResponseErrorCode,
         reason: String,
     ) {
-        self.inform_network(NetworkMessage::SendErrorResponse {
+        self.inform_network(ServiceMessage::SendErrorResponse {
             peer_id,
             error,
             id,

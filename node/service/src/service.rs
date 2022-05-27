@@ -3,60 +3,12 @@ use crate::router::{Router, RouterMessage};
 use futures::channel::mpsc::Sender;
 use futures::prelude::*;
 use network::Service as LibP2PService;
-use network::{
-    rpc::{GoodbyeReason, RPCResponseErrorCode},
-    Context, Libp2pEvent, NetworkConfig, PeerAction, PeerRequestId, PubsubMessage, ReportSource,
-    Request, Response,
-};
-use network::{BehaviourEvent, NetworkGlobals, PeerId};
+use network::{BehaviourEvent, NetworkGlobals};
+use network::{Context, Libp2pEvent, NetworkConfig};
+use shared_types::{RequestId, ServiceMessage};
 use std::sync::Arc;
 use task_executor::ShutdownReason;
 use tokio::sync::mpsc;
-
-/// Application level requests sent to the network.
-#[derive(Debug, Clone, Copy)]
-pub enum RequestId {
-    Router,
-}
-
-/// Types of messages that the network service can receive.
-#[derive(Debug)]
-pub enum NetworkMessage {
-    /// Send an RPC request to the libp2p service.
-    SendRequest {
-        peer_id: PeerId,
-        request: Request,
-        request_id: RequestId,
-    },
-    /// Send a successful Response to the libp2p service.
-    SendResponse {
-        peer_id: PeerId,
-        response: Response,
-        id: PeerRequestId,
-    },
-    /// Send an error response to an RPC request.
-    SendErrorResponse {
-        peer_id: PeerId,
-        error: RPCResponseErrorCode,
-        reason: String,
-        id: PeerRequestId,
-    },
-    /// Publish a list of messages to the gossipsub protocol.
-    Publish { messages: Vec<PubsubMessage> },
-    /// Reports a peer to the peer manager for performing an action.
-    ReportPeer {
-        peer_id: PeerId,
-        action: PeerAction,
-        source: ReportSource,
-        msg: &'static str,
-    },
-    /// Disconnect an ban a peer, providing a reason.
-    GoodbyePeer {
-        peer_id: PeerId,
-        reason: GoodbyeReason,
-        source: ReportSource,
-    },
-}
 
 /// Service that handles communication between internal services and the libp2p service.
 pub struct NetworkService {
@@ -64,10 +16,10 @@ pub struct NetworkService {
     libp2p: LibP2PService<RequestId>,
 
     /// The receiver channel for Ionian to communicate with the network service.
-    network_recv: mpsc::UnboundedReceiver<NetworkMessage>,
+    network_recv: mpsc::UnboundedReceiver<ServiceMessage>,
 
-    /// The sending channel for the network service to send messages to be routed throughout
-    /// Ionian.
+    /// The sending channel for the network service to send messages
+    /// to be routed throughout Ionian.
     router_send: mpsc::UnboundedSender<RouterMessage>,
 
     /// A collection of global variables, accessible outside of the network service.
@@ -78,8 +30,8 @@ impl NetworkService {
     pub async fn start(
         config: &NetworkConfig,
         executor: task_executor::TaskExecutor,
-    ) -> error::Result<(Arc<NetworkGlobals>, mpsc::UnboundedSender<NetworkMessage>)> {
-        let (network_send, network_recv) = mpsc::unbounded_channel::<NetworkMessage>();
+    ) -> error::Result<(Arc<NetworkGlobals>, mpsc::UnboundedSender<ServiceMessage>)> {
+        let (network_send, network_recv) = mpsc::unbounded_channel::<ServiceMessage>();
 
         // construct the libp2p service context
         let service_context = Context { config };
@@ -124,7 +76,7 @@ impl NetworkService {
                     // handle a message sent to the network
                     Some(msg) = self.network_recv.recv() => self.on_network_msg(msg, &mut shutdown_sender).await,
 
-                    // handle even coming from the network
+                    // handle event coming from the network
                     event = self.libp2p.next_event() => self.on_libp2p_event(event, &mut shutdown_sender).await,
                 }
             }
@@ -218,27 +170,27 @@ impl NetworkService {
     /// Handle a message sent to the network service.
     async fn on_network_msg(
         &mut self,
-        msg: NetworkMessage,
+        msg: ServiceMessage,
         _shutdown_sender: &mut Sender<ShutdownReason>,
     ) {
         debug!(?msg, "Received new message");
 
         match msg {
-            NetworkMessage::SendRequest {
+            ServiceMessage::SendRequest {
                 peer_id,
                 request,
                 request_id,
             } => {
                 self.libp2p.send_request(peer_id, request_id, request);
             }
-            NetworkMessage::SendResponse {
+            ServiceMessage::SendResponse {
                 peer_id,
                 response,
                 id,
             } => {
                 self.libp2p.send_response(peer_id, id, response);
             }
-            NetworkMessage::SendErrorResponse {
+            ServiceMessage::SendErrorResponse {
                 peer_id,
                 error,
                 id,
@@ -246,7 +198,7 @@ impl NetworkService {
             } => {
                 self.libp2p.respond_with_error(peer_id, id, error, reason);
             }
-            NetworkMessage::Publish { messages } => {
+            ServiceMessage::Publish { messages } => {
                 let mut topic_kinds = Vec::new();
                 for message in &messages {
                     if !topic_kinds.contains(&message.kind()) {
@@ -260,13 +212,13 @@ impl NetworkService {
                 );
                 self.libp2p.swarm.behaviour_mut().publish(messages);
             }
-            NetworkMessage::ReportPeer {
+            ServiceMessage::ReportPeer {
                 peer_id,
                 action,
                 source,
                 msg,
             } => self.libp2p.report_peer(&peer_id, action, source, msg),
-            NetworkMessage::GoodbyePeer {
+            ServiceMessage::GoodbyePeer {
                 peer_id,
                 reason,
                 source,

@@ -1,7 +1,8 @@
 use super::{Client, RuntimeContext};
 use network::{NetworkConfig, NetworkGlobals};
 use rpc::RPCConfig;
-use service::{NetworkMessage, NetworkService};
+use service::NetworkService;
+use shared_types::ServiceMessage;
 use std::sync::Arc;
 use tokio::sync::mpsc::UnboundedSender;
 
@@ -14,7 +15,7 @@ use tokio::sync::mpsc::UnboundedSender;
 pub struct ClientBuilder {
     runtime_context: Option<RuntimeContext>,
     network_globals: Option<Arc<NetworkGlobals>>,
-    network_send: Option<UnboundedSender<NetworkMessage>>,
+    network_send: Option<UnboundedSender<ServiceMessage>>,
 }
 
 impl ClientBuilder {

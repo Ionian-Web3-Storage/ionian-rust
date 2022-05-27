@@ -4,7 +4,7 @@ use crate::types::Status;
 use crate::Context;
 use jsonrpsee::core::async_trait;
 use network::{rpc::StatusMessage, NetworkGlobals};
-use service::{NetworkMessage, RequestId};
+use shared_types::{RequestId, ServiceMessage};
 use std::sync::Arc;
 use tokio::sync::mpsc::UnboundedSender;
 
@@ -33,7 +33,7 @@ impl RpcServer for RpcServerImpl {
             .collect::<Vec<_>>();
 
         for peer_id in peer_ids {
-            let res = self.network_tx()?.send(NetworkMessage::SendRequest {
+            let res = self.network_tx()?.send(ServiceMessage::SendRequest {
                 peer_id,
                 request: network::Request::Status(StatusMessage { data }),
                 request_id: RequestId::Router,
@@ -58,7 +58,7 @@ impl RpcServerImpl {
         }
     }
 
-    fn network_tx(&self) -> Result<&UnboundedSender<NetworkMessage>, jsonrpsee::core::Error> {
+    fn network_tx(&self) -> Result<&UnboundedSender<ServiceMessage>, jsonrpsee::core::Error> {
         match &self.ctx.network_tx {
             Some(network_tx) => Ok(network_tx),
             None => Err(error::internal_error(&"network tx is not initialized.")),

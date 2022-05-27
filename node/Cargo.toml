@@ -12,6 +12,7 @@ ionian_version = { path = "../common/ionian_version" }
 network = { path = "./network" }
 rpc = { path = "./rpc" }
 service = { path = "./service" }
+shared_types = { path = "./shared_types" }
 task_executor = { path = "../common/task_executor" }
 tokio = { version = "1.17.0", features = ["full"] }
 tokio-stream = { version = "0.1.8", features = ["sync"] }

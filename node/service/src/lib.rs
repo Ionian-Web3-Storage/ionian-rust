@@ -5,4 +5,4 @@ mod error;
 mod router;
 mod service;
 
-pub use crate::service::{NetworkMessage, NetworkService, RequestId};
+pub use crate::service::NetworkService;
