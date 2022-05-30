@@ -12,9 +12,19 @@ pub fn not_supported() -> Error {
 }
 
 pub fn internal_error(msg: &'static impl std::convert::AsRef<str>) -> Error {
-    Error::Call(CallError::Custom(ErrorObject::borrowed(
+    Error::Call(CallError::Custom(ErrorObject::owned(
         ErrorCode::InternalError.code(),
-        msg,
-        None,
+        "Internal error",
+        Some(msg.as_ref()),
+    )))
+}
+
+pub fn invalid_params(param: &str, msg: impl std::convert::AsRef<str>) -> Error {
+    let error = &format!("Invalid params: {:}", param);
+
+    Error::Call(CallError::Custom(ErrorObject::owned(
+        ErrorCode::InvalidParams.code(),
+        error,
+        Some(msg.as_ref()),
     )))
 }

@@ -223,6 +223,9 @@ impl NetworkService {
                 reason,
                 source,
             } => self.libp2p.goodbye_peer(&peer_id, reason, source),
+            ServiceMessage::NewDataChunk { chunk } => {
+                info!("Received new chunk: {:?}", chunk);
+            }
         }
     }
 }

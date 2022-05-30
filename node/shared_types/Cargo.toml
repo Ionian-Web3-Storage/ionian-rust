@@ -4,4 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+ethereum-types = "0.13.1"
+hex = "0.4.3"
 network = { path = "../network" }
+sha3 = "0.10.1"
