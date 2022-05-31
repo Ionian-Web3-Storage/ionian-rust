@@ -5,6 +5,7 @@ network_target_peers = 3
 network_boot_nodes = []
 network_libp2p_nodes = []
 network_private = false
+network_disable_discovery = false
 
 rpc_enabled = true
 rpc_listen_address = "127.0.0.1:5678"

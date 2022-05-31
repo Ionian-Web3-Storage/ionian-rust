@@ -13,6 +13,7 @@ build_config! {
     (network_boot_nodes, (Vec<String>), vec![])
     (network_libp2p_nodes, (Vec<String>), vec![])
     (network_private, (bool), false)
+    (network_disable_discovery, (bool), false)
 
     // rpc
     (rpc_enabled, (bool), true)

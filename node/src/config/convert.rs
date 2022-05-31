@@ -15,6 +15,7 @@ impl IonianConfig {
 
         network_config.network_dir = self.network_dir.clone().into();
         network_config.libp2p_port = self.network_libp2p_port;
+        network_config.disable_discovery = self.network_disable_discovery;
         network_config.discovery_port = self.network_libp2p_port;
         network_config.enr_tcp_port = Some(self.network_libp2p_port);
         network_config.enr_udp_port = Some(self.network_libp2p_port);
@@ -25,6 +26,13 @@ impl IonianConfig {
             .map(|addr| addr.parse::<libp2p::Multiaddr>())
             .collect::<Result<_, _>>()
             .map_err(|e| format!("Unable to parse network_boot_nodes: {:?}", e))?;
+
+        network_config.libp2p_nodes = self
+            .network_libp2p_nodes
+            .iter()
+            .map(|addr| addr.parse::<libp2p::Multiaddr>())
+            .collect::<Result<_, _>>()
+            .map_err(|e| format!("Unable to parse network_libp2p_nodes: {:?}", e))?;
 
         network_config.discv5_config.table_filter = |_| true;
 
