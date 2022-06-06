@@ -1,3 +1,4 @@
+use ethereum_types::H256;
 use network::{
     rpc::{GoodbyeReason, RPCResponseErrorCode},
     PeerAction, PeerId, PeerRequestId, PubsubMessage, ReportSource, Request, Response,
@@ -46,4 +47,45 @@ pub enum ServiceMessage {
         reason: GoodbyeReason,
         source: ReportSource,
     },
+}
+
+/// Placeholder types for transactions and chunks.
+pub type TransactionHash = H256;
+pub type DataRoot = H256;
+// Each chunk is 32 bytes.
+pub const CHUNK_SIZE: usize = 32;
+pub struct Chunk(pub [u8; CHUNK_SIZE]);
+pub struct ChunkProof {}
+pub struct Transaction {
+    hash: TransactionHash,
+    size: u64,
+    data_merkle_root: DataRoot,
+}
+pub struct ChunkWithProof {
+    chunk: Chunk,
+    proof: ChunkProof,
+}
+pub struct ChunkArrayWithProof {
+    chunks: ChunkArray,
+    start_proof: ChunkProof,
+    end_proof: ChunkProof,
+}
+pub struct ChunkArray {
+    // The length is exactly `(end_index - start_index) * CHUNK_SIZE`
+    pub data: Vec<u8>,
+    pub start_index: u32,
+    pub end_index: u32,
+}
+impl ChunkArray {
+    pub fn chunk_at(&self, index: u32) -> Option<Chunk> {
+        if index >= self.end_index || index < self.start_index {
+            return None;
+        }
+        let offset = (index - self.start_index) as usize * CHUNK_SIZE;
+        Some(Chunk(
+            self.data[offset..offset + CHUNK_SIZE]
+                .try_into()
+                .expect("length match"),
+        ))
+    }
 }

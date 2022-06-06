@@ -5,3 +5,4 @@ edition = "2021"
 
 [dependencies]
 network = { path = "../network" }
+ethereum-types = "0.13.1"
