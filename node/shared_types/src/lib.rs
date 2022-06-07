@@ -65,6 +65,7 @@ pub struct Transaction {
     hash: TransactionHash,
     size: u64,
     data_merkle_root: DataRoot,
+    pub seq: u64,
 }
 
 impl Transaction {

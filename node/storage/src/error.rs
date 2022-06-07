@@ -1,3 +1,4 @@
+use ssz::{Decode, DecodeError};
 use std::error::Error as ErrorTrait;
 use std::fmt::{Debug, Display, Formatter};
 use std::io::Error as IoError;
@@ -9,12 +10,19 @@ pub enum Error {
     Io(IoError),
     /// A partial chunk batch is written.
     InvalidBatchBoundary,
+    ValueDecodingError(DecodeError),
     Custom(String),
 }
 
 impl From<IoError> for Error {
     fn from(e: IoError) -> Self {
         Error::Io(e)
+    }
+}
+
+impl From<DecodeError> for Error {
+    fn from(e: DecodeError) -> Self {
+        Error::ValueDecodingError(e)
     }
 }
 

@@ -8,10 +8,10 @@ use crate::error::Result;
 /// If the stored chunk is large, we can store the proof together with the chunk.
 pub trait LogStoreRead: LogStoreChunkRead {
     /// Get a transaction by its hash.
-    fn get_tx_by_hash(&self, hash: &TransactionHash) -> Result<Transaction>;
+    fn get_tx_by_hash(&self, hash: &TransactionHash) -> Result<Option<Transaction>>;
 
     /// Get a transaction by its global log sequence number.
-    fn get_tx_by_seq_number(&self, seq: u64) -> Result<Transaction>;
+    fn get_tx_by_seq_number(&self, seq: u64) -> Result<Option<Transaction>>;
 }
 
 pub trait LogStoreChunkRead {

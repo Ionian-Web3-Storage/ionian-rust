@@ -1,16 +1,19 @@
 use crate::error::{Error, Result};
-use crate::log_store::{LogChunkStore, LogStoreChunkRead, LogStoreChunkWrite, LogStoreWrite};
+use crate::log_store::{
+    LogChunkStore, LogStoreChunkRead, LogStoreChunkWrite, LogStoreRead, LogStoreWrite,
+};
 use crate::IonianKeyValueDB;
 use kvdb_rocksdb::{Database, DatabaseConfig};
 use shared_types::{Chunk, ChunkArray, DataRoot, Transaction, TransactionHash, CHUNK_SIZE};
-use ssz::{Decode, Encode};
+use ssz::{Decode, DecodeError, Encode};
 use std::cmp;
 use std::path::Path;
 use std::sync::Arc;
 
 const COL_TX: u32 = 0;
-const COL_CHUNK: u32 = 1;
-const COL_NUM: u32 = 2;
+const COL_TX_HASH_INDEX: u32 = 1;
+const COL_CHUNK: u32 = 2;
+const COL_NUM: u32 = 3;
 // A chunk key is the concatenation of tx_seq(u64) and start_index(u32)
 const CHUNK_KEY_SIZE: usize = 8 + 4;
 const CHUNK_BATCH_SIZE: usize = 1024;
@@ -133,13 +136,48 @@ impl LogStoreWrite for SimpleLogStore {
             tx.compute_hash();
         }
         let tx_hash = tx.hash();
-        self.kvdb
-            .put(COL_TX, tx_hash.as_bytes(), &tx.as_ssz_bytes())
-            .map_err(Into::into)
+        let mut db_tx = self.kvdb.transaction();
+        db_tx.put(COL_TX, &tx.seq.to_be_bytes(), &tx.as_ssz_bytes());
+        db_tx.put(
+            COL_TX_HASH_INDEX,
+            tx_hash.as_bytes(),
+            &tx.seq.to_be_bytes(),
+        );
+        self.kvdb.write(db_tx).map_err(Into::into)
     }
 
     fn finalize_tx(&self, tx_seq: u64) -> Result<()> {
         todo!()
+    }
+}
+
+impl LogStoreRead for SimpleLogStore {
+    fn get_tx_by_hash(&self, hash: &TransactionHash) -> Result<Option<Transaction>> {
+        let maybe_value = self.kvdb.get(COL_TX_HASH_INDEX, hash.as_bytes())?;
+        if maybe_value.is_none() {
+            return Ok(None);
+        }
+        let value = maybe_value.unwrap();
+        if value.len() != 4 {
+            return Err(Error::ValueDecodingError(DecodeError::InvalidByteLength {
+                len: value.len(),
+                expected: 4,
+            }));
+        }
+        let seq = u64::from_be_bytes(value.try_into().unwrap());
+        self.get_tx_by_seq_number(seq)
+    }
+
+    fn get_tx_by_seq_number(&self, seq: u64) -> Result<Option<Transaction>> {
+        let maybe_value = self.kvdb.get(COL_TX, &seq.to_be_bytes())?;
+        match maybe_value {
+            None => Ok(None),
+            Some(value) => {
+                let mut tx = Transaction::from_ssz_bytes(&value)?;
+                tx.compute_hash();
+                Ok(Some(tx))
+            }
+        }
     }
 }
 
