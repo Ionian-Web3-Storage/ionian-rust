@@ -63,8 +63,8 @@ pub struct ChunkProof {}
 pub struct Transaction {
     #[ssz(skip_serializing, skip_deserializing)]
     hash: TransactionHash,
-    size: u64,
-    data_merkle_root: DataRoot,
+    pub size: u64,
+    pub data_merkle_root: DataRoot,
     pub seq: u64,
 }
 

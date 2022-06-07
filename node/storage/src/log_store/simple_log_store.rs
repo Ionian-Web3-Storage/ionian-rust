@@ -4,6 +4,10 @@ use crate::log_store::{
 };
 use crate::IonianKeyValueDB;
 use kvdb_rocksdb::{Database, DatabaseConfig};
+use merkle_tree::Sha3Algorithm;
+use merkletree::merkle::MerkleTree;
+use merkletree::store::VecStore;
+use merkletree::test_common::XOR128;
 use shared_types::{Chunk, ChunkArray, DataRoot, Transaction, TransactionHash, CHUNK_SIZE};
 use ssz::{Decode, DecodeError, Encode};
 use std::cmp;
@@ -12,8 +16,9 @@ use std::sync::Arc;
 
 const COL_TX: u32 = 0;
 const COL_TX_HASH_INDEX: u32 = 1;
-const COL_CHUNK: u32 = 2;
-const COL_NUM: u32 = 3;
+const COL_TX_MERKLE: u32 = 2;
+const COL_CHUNK: u32 = 3;
+const COL_NUM: u32 = 4;
 // A chunk key is the concatenation of tx_seq(u64) and start_index(u32)
 const CHUNK_KEY_SIZE: usize = 8 + 4;
 const CHUNK_BATCH_SIZE: usize = 1024;
@@ -21,6 +26,7 @@ const CHUNK_BATCH_SIZE: usize = 1024;
 pub struct SimpleLogStore {
     kvdb: Arc<dyn IonianKeyValueDB>,
     chunk_store: Arc<dyn LogChunkStore>,
+    chunk_batch_size: usize,
 }
 
 pub struct BatchChunkStore {
@@ -104,6 +110,7 @@ impl SimpleLogStore {
                 kvdb,
                 batch_size: CHUNK_BATCH_SIZE,
             }),
+            chunk_batch_size: CHUNK_BATCH_SIZE,
         })
     }
 }
@@ -138,16 +145,66 @@ impl LogStoreWrite for SimpleLogStore {
         let tx_hash = tx.hash();
         let mut db_tx = self.kvdb.transaction();
         db_tx.put(COL_TX, &tx.seq.to_be_bytes(), &tx.as_ssz_bytes());
-        db_tx.put(
-            COL_TX_HASH_INDEX,
-            tx_hash.as_bytes(),
-            &tx.seq.to_be_bytes(),
-        );
+        db_tx.put(COL_TX_HASH_INDEX, tx_hash.as_bytes(), &tx.seq.to_be_bytes());
         self.kvdb.write(db_tx).map_err(Into::into)
     }
 
     fn finalize_tx(&self, tx_seq: u64) -> Result<()> {
-        todo!()
+        let maybe_tx = self.get_tx_by_seq_number(tx_seq)?;
+        if maybe_tx.is_none() {
+            return Err(Error::Custom(format!(
+                "finalize_tx: tx not in db, tx_seq={}",
+                tx_seq
+            )));
+        }
+        let tx = maybe_tx.unwrap();
+        let mut chunk_index_end = tx.size as usize / CHUNK_SIZE;
+        if chunk_index_end * CHUNK_SIZE < tx.size as usize {
+            chunk_index_end += 1;
+        }
+        let mut chunk_batch_roots = Vec::with_capacity(chunk_index_end / self.chunk_batch_size + 1);
+        for batch_start_index in (0..chunk_index_end).step_by(self.chunk_batch_size) {
+            let batch_end_index =
+                cmp::min(batch_start_index + self.chunk_batch_size, chunk_index_end);
+            let chunks = self.chunk_store.get_chunks_by_tx_and_index_range(
+                tx_seq,
+                batch_start_index as u32,
+                batch_end_index as u32,
+            )?;
+            if chunks.is_none() {
+                return Err(Error::Custom(format!(
+                    "finalize_tx: chunk batch not in db, start_index={}",
+                    batch_start_index
+                )));
+            }
+            let chunks_iter = chunks.as_ref().unwrap().data.chunks(CHUNK_SIZE);
+            let merkle_tree = MerkleTree::<[u8; 32], Sha3Algorithm, VecStore<_>>::try_from_iter(
+                chunks_iter.map(|chunk| chunk.try_into().map_err(|e| anyhow::anyhow!("{}", e))),
+            )
+            .map_err(|e| Error::Custom(format!("{:?}", e)))?;
+            let merkle_root = merkle_tree.root();
+            chunk_batch_roots.push(merkle_root);
+        }
+        let merkle_tree = MerkleTree::<[u8; 32], Sha3Algorithm, VecStore<_>>::try_from_iter(
+            chunk_batch_roots.into_iter().map(Ok),
+        )
+        .map_err(|e| Error::Custom(format!("{:?}", e)))?;
+        if merkle_tree.root() != tx.data_merkle_root.0 {
+            // TODO: Delete all chunks?
+            return Err(Error::Custom(format!(
+                "finalize_tx: data merkle root unmatch"
+            )));
+        }
+        let mut tree_bytes = Vec::new();
+        for h in &**merkle_tree.data().unwrap() {
+            tree_bytes.extend_from_slice(h.as_slice());
+        }
+        self.kvdb
+            .put(COL_TX_MERKLE, &tx_seq.to_be_bytes(), &tree_bytes)?;
+        // let tree = (**merkle_tree.data().unwrap()).to_vec();
+        // let new_merkle_tree = MerkleTree::from_data_store(VecStore::<[u8; 32]>(tree), chunk_index_end - 1);
+        // TODO: Mark the tx as completed.
+        Ok(())
     }
 }
 
