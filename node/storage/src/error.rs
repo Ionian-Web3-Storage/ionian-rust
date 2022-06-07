@@ -9,6 +9,7 @@ pub enum Error {
     Io(IoError),
     /// A partial chunk batch is written.
     InvalidBatchBoundary,
+    Custom(String),
 }
 
 impl From<IoError> for Error {

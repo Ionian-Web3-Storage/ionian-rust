@@ -3,6 +3,9 @@ use network::{
     rpc::{GoodbyeReason, RPCResponseErrorCode},
     PeerAction, PeerId, PeerRequestId, PubsubMessage, ReportSource, Request, Response,
 };
+use ssz::{Decode, Encode};
+use ssz_derive::{Decode as DeriveDecode, Encode as DeriveEncode};
+use tiny_keccak::{Hasher, Keccak};
 
 /// Application level requests sent to the network.
 #[derive(Debug, Clone, Copy)]
@@ -56,10 +59,28 @@ pub type DataRoot = H256;
 pub const CHUNK_SIZE: usize = 32;
 pub struct Chunk(pub [u8; CHUNK_SIZE]);
 pub struct ChunkProof {}
+#[derive(DeriveDecode, DeriveEncode)]
 pub struct Transaction {
+    #[ssz(skip_serializing, skip_deserializing)]
     hash: TransactionHash,
     size: u64,
     data_merkle_root: DataRoot,
+}
+
+impl Transaction {
+    pub fn compute_hash(&mut self) -> TransactionHash {
+        let ssz_bytes = self.as_ssz_bytes();
+        let mut output = TransactionHash::default();
+        let mut hasher = Keccak::v256();
+        hasher.update(&ssz_bytes);
+        hasher.finalize(output.as_bytes_mut());
+        self.hash = output;
+        output
+    }
+
+    pub fn hash(&self) -> &TransactionHash {
+        &self.hash
+    }
 }
 pub struct ChunkWithProof {
     chunk: Chunk,

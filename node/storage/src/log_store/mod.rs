@@ -1,5 +1,3 @@
-use kvdb::KeyValueDB;
-
 use shared_types::{Chunk, ChunkArray, Transaction, TransactionHash};
 
 use crate::error::Result;

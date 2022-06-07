@@ -1,8 +1,9 @@
 use crate::error::{Error, Result};
-use crate::log_store::{LogChunkStore, LogStoreChunkRead, LogStoreChunkWrite};
+use crate::log_store::{LogChunkStore, LogStoreChunkRead, LogStoreChunkWrite, LogStoreWrite};
 use crate::IonianKeyValueDB;
 use kvdb_rocksdb::{Database, DatabaseConfig};
-use shared_types::{Chunk, ChunkArray, DataRoot, CHUNK_SIZE};
+use shared_types::{Chunk, ChunkArray, DataRoot, Transaction, TransactionHash, CHUNK_SIZE};
+use ssz::{Decode, Encode};
 use std::cmp;
 use std::path::Path;
 use std::sync::Arc;
@@ -99,6 +100,44 @@ impl SimpleLogStore {
                 batch_size: CHUNK_BATCH_SIZE,
             }),
         })
+    }
+}
+
+impl LogStoreChunkRead for SimpleLogStore {
+    fn get_chunk_by_tx_and_index(&self, tx_seq: u64, index: u32) -> Result<Option<Chunk>> {
+        self.chunk_store.get_chunk_by_tx_and_index(tx_seq, index)
+    }
+
+    fn get_chunks_by_tx_and_index_range(
+        &self,
+        tx_seq: u64,
+        index_start: u32,
+        index_end: u32,
+    ) -> Result<Option<ChunkArray>> {
+        self.chunk_store
+            .get_chunks_by_tx_and_index_range(tx_seq, index_start, index_end)
+    }
+}
+
+impl LogStoreChunkWrite for SimpleLogStore {
+    fn put_chunks(&self, tx_seq: u64, chunks: ChunkArray) -> Result<()> {
+        self.chunk_store.put_chunks(tx_seq, chunks)
+    }
+}
+
+impl LogStoreWrite for SimpleLogStore {
+    fn put_tx(&self, mut tx: Transaction) -> Result<()> {
+        if *tx.hash() == TransactionHash::default() {
+            tx.compute_hash();
+        }
+        let tx_hash = tx.hash();
+        self.kvdb
+            .put(COL_TX, tx_hash.as_bytes(), &tx.as_ssz_bytes())
+            .map_err(Into::into)
+    }
+
+    fn finalize_tx(&self, tx_seq: u64) -> Result<()> {
+        todo!()
     }
 }
 
