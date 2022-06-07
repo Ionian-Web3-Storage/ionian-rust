@@ -39,13 +39,14 @@ impl LogStoreChunkWrite for BatchChunkStore {
         if chunks.start_index % self.batch_size as u32 != 0 {
             return Err(Error::InvalidBatchBoundary);
         }
+        let mut tx = self.kvdb.transaction();
         // TODO: If `chunks.end_index` is not in the boundary, we just assume it's the end for now.
         for index in (chunks.start_index..chunks.end_index).step_by(self.batch_size) {
             let key = chunk_key(tx_seq, index);
             let end = cmp::min(index + self.batch_size as u32, chunks.end_index) as usize;
-            self.kvdb
-                .put(COL_CHUNK, &key, &chunks.data[index as usize..end])?;
+            tx.put(COL_CHUNK, &key, &chunks.data[index as usize..end]);
         }
+        self.kvdb.write(tx)?;
         Ok(())
     }
 }
@@ -67,7 +68,8 @@ impl LogStoreChunkRead for BatchChunkStore {
         if index_end <= index_start {
             return Err(Error::InvalidBatchBoundary);
         }
-        let mut data = Vec::with_capacity(((index_end - index_end) as usize * CHUNK_SIZE) as usize);
+        let mut data =
+            Vec::with_capacity(((index_start - index_end) as usize * CHUNK_SIZE) as usize);
         for index in (index_start..index_end).step_by(self.batch_size) {
             let key_index = index / self.batch_size as u32;
             let key = chunk_key(tx_seq, key_index);
