@@ -8,7 +8,7 @@ use merkle_tree::Sha3Algorithm;
 use merkletree::merkle::MerkleTree;
 use merkletree::store::VecStore;
 use shared_types::{
-    Chunk, ChunkArray, ChunkArrayWithProof, ChunkWithProof, DataRoot, Transaction, TransactionHash,
+    Chunk, ChunkArray, ChunkArrayWithProof, ChunkWithProof, Transaction, TransactionHash,
     CHUNK_SIZE,
 };
 use ssz::{Decode, DecodeError, Encode};
@@ -103,6 +103,7 @@ impl LogStoreChunkRead for BatchChunkStore {
 }
 
 impl SimpleLogStore {
+    #[allow(unused)]
     pub fn open(path: &Path) -> Result<Self> {
         let mut config = DatabaseConfig::with_columns(COL_NUM);
         config.enable_statistics = true;

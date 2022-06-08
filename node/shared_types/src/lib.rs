@@ -3,7 +3,7 @@ use network::{
     rpc::{GoodbyeReason, RPCResponseErrorCode},
     PeerAction, PeerId, PeerRequestId, PubsubMessage, ReportSource, Request, Response,
 };
-use ssz::{Decode, Encode};
+use ssz::{Encode};
 use ssz_derive::{Decode as DeriveDecode, Encode as DeriveEncode};
 use tiny_keccak::{Hasher, Keccak};
 
@@ -83,15 +83,19 @@ impl Transaction {
         &self.hash
     }
 }
+
+#[allow(unused)]
 pub struct ChunkWithProof {
     chunk: Chunk,
     proof: ChunkProof,
 }
+#[allow(unused)]
 pub struct ChunkArrayWithProof {
     chunks: ChunkArray,
     start_proof: ChunkProof,
     end_proof: ChunkProof,
 }
+#[allow(unused)]
 pub struct ChunkArray {
     // The length is exactly `(end_index - start_index) * CHUNK_SIZE`
     pub data: Vec<u8>,
