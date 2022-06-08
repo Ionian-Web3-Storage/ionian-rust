@@ -7,10 +7,7 @@ use kvdb_rocksdb::{Database, DatabaseConfig};
 use merkle_tree::Sha3Algorithm;
 use merkletree::merkle::MerkleTree;
 use merkletree::store::VecStore;
-use shared_types::{
-    Chunk, ChunkArray, ChunkArrayWithProof, ChunkWithProof, Transaction, TransactionHash,
-    CHUNK_SIZE,
-};
+use shared_types::{Chunk, ChunkArray, ChunkArrayWithProof, ChunkWithProof, Transaction, TransactionHash, CHUNK_SIZE, DataRoot};
 use ssz::{Decode, DecodeError, Encode};
 use std::cmp;
 use std::path::Path;
@@ -196,7 +193,8 @@ impl LogStoreWrite for SimpleLogStore {
         if merkle_tree.root() != tx.data_merkle_root.0 {
             // TODO: Delete all chunks?
             return Err(Error::Custom(format!(
-                "finalize_tx: data merkle root unmatch"
+                "finalize_tx: data merkle root unmatch, found={:?} expected={:?}",
+                DataRoot::from(merkle_tree.root()), tx.data_merkle_root,
             )));
         }
         let mut tree_bytes = Vec::new();
