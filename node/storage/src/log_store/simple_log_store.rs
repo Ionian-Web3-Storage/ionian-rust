@@ -7,8 +7,10 @@ use kvdb_rocksdb::{Database, DatabaseConfig};
 use merkle_tree::Sha3Algorithm;
 use merkletree::merkle::MerkleTree;
 use merkletree::store::VecStore;
-use merkletree::test_common::XOR128;
-use shared_types::{Chunk, ChunkArray, DataRoot, Transaction, TransactionHash, CHUNK_SIZE};
+use shared_types::{
+    Chunk, ChunkArray, ChunkArrayWithProof, ChunkWithProof, DataRoot, Transaction, TransactionHash,
+    CHUNK_SIZE,
+};
 use ssz::{Decode, DecodeError, Encode};
 use std::cmp;
 use std::path::Path;
@@ -32,12 +34,6 @@ pub struct SimpleLogStore {
 pub struct BatchChunkStore {
     kvdb: Arc<dyn IonianKeyValueDB>,
     batch_size: usize,
-}
-
-/// This represents a batch of chunks where the batch boundary is a multiple of batch size (except the last batch of a data entry).
-struct BatchChunks {
-    data: Vec<u8>,
-    batch_merkle_root: DataRoot,
 }
 
 impl LogStoreChunkWrite for BatchChunkStore {
@@ -83,13 +79,20 @@ impl LogStoreChunkRead for BatchChunkStore {
             let key_index = index / self.batch_size as u32;
             let key = chunk_key(tx_seq, key_index);
             let end = cmp::min(key_index + self.batch_size as u32, index_end) as usize;
-            let batch_data = self.kvdb.get(COL_CHUNK, &key)?;
-            if batch_data.is_none() {
+            let maybe_batch_data = self.kvdb.get(COL_CHUNK, &key)?;
+            if maybe_batch_data.is_none() {
                 return Ok(None);
             }
-            data.extend_from_slice(
-                &batch_data.unwrap()[index as usize % self.batch_size..end % self.batch_size],
-            );
+            let batch_data = maybe_batch_data.unwrap();
+            let batch_end = end % self.batch_size;
+            if batch_data.len() < batch_end {
+                return Err(Error::Custom(format!(
+                    "read a partial chunk batch: size={}, expected={}",
+                    batch_data.len(),
+                    batch_end
+                )));
+            }
+            data.extend_from_slice(&batch_data[index as usize % self.batch_size..batch_end]);
         }
         Ok(Some(ChunkArray {
             data,
@@ -235,6 +238,23 @@ impl LogStoreRead for SimpleLogStore {
                 Ok(Some(tx))
             }
         }
+    }
+
+    fn get_chunk_with_proof_by_tx_and_index(
+        &self,
+        _tx_seq: u64,
+        _index: u32,
+    ) -> Result<Option<ChunkWithProof>> {
+        todo!()
+    }
+
+    fn get_chunks_with_proof_by_tx_and_index_range(
+        &self,
+        _tx_seq: u64,
+        _index_start: u32,
+        _index_end: u32,
+    ) -> Result<Option<ChunkArrayWithProof>> {
+        todo!()
     }
 }
 

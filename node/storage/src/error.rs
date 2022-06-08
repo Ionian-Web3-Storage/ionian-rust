@@ -1,4 +1,4 @@
-use ssz::{Decode, DecodeError};
+use ssz::DecodeError;
 use std::error::Error as ErrorTrait;
 use std::fmt::{Debug, Display, Formatter};
 use std::io::Error as IoError;
