@@ -74,7 +74,7 @@ impl LogStoreChunkRead for BatchChunkStore {
             return Err(Error::InvalidBatchBoundary);
         }
         let mut data =
-            Vec::with_capacity(((index_start - index_end) as usize * CHUNK_SIZE) as usize);
+            Vec::with_capacity(((index_end - index_start) as usize * CHUNK_SIZE) as usize);
         for index in (index_start..index_end).step_by(self.batch_size) {
             let key_index = index / self.batch_size as u32;
             let key = chunk_key(tx_seq, key_index);
