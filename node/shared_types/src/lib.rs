@@ -1,6 +1,11 @@
 #![allow(unused)]
 
 use ethereum_types::H256;
+use merkletree::proof::Proof;
+use network::{
+    rpc::{GoodbyeReason, RPCResponseErrorCode},
+    PeerAction, PeerId, PeerRequestId, PubsubMessage, ReportSource, Request, Response,
+};
 use ssz::Encode;
 use ssz_derive::{Decode as DeriveDecode, Encode as DeriveEncode};
 use tiny_keccak::{Hasher, Keccak};
@@ -22,8 +27,18 @@ pub const CHUNK_SIZE: usize = 32;
 pub struct Chunk(pub [u8; CHUNK_SIZE]);
 
 #[derive(Clone, PartialEq, DeriveEncode, DeriveDecode)]
-pub struct ChunkProof {}
-
+pub struct ChunkProof {
+    pub lemma: Vec<[u8; 32]>,
+    pub path: Vec<usize>,
+}
+impl ChunkProof {
+    pub fn from_merkle_proof(proof: &Proof<[u8; 32]>) -> Self {
+        ChunkProof {
+            lemma: proof.lemma().clone(),
+            path: proof.path().clone(),
+        }
+    }
+}
 #[derive(DeriveDecode, DeriveEncode)]
 pub struct Transaction {
     #[ssz(skip_serializing, skip_deserializing)]
@@ -50,8 +65,8 @@ impl Transaction {
 }
 
 pub struct ChunkWithProof {
-    chunk: Chunk,
-    proof: ChunkProof,
+    pub chunk: Chunk,
+    pub proof: ChunkProof,
 }
 
 #[derive(Clone, PartialEq, DeriveEncode, DeriveDecode)]
@@ -70,15 +85,16 @@ impl std::fmt::Debug for ChunkArrayWithProof {
 
 #[derive(Clone, PartialEq, DeriveEncode, DeriveDecode)]
 pub struct ChunkArray {
-    // The length is exactly `(end_index - start_index) * CHUNK_SIZE`
+    // The length is exactly a multiple of `CHUNK_SIZE`
     pub data: Vec<u8>,
     pub start_index: u32,
-    pub end_index: u32,
 }
 
 impl ChunkArray {
     pub fn chunk_at(&self, index: u32) -> Option<Chunk> {
-        if index >= self.end_index || index < self.start_index {
+        if index >= (self.data.len() / CHUNK_SIZE) as u32 + self.start_index
+            || index < self.start_index
+        {
             return None;
         }
         let offset = (index - self.start_index) as usize * CHUNK_SIZE;

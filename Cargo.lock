@@ -4475,6 +4475,8 @@ dependencies = [
  "eth2_ssz_derive",
  "eth2_ssz_types",
  "ethereum-types 0.12.1",
+ "merkletree",
+ "network",
  "tiny-keccak",
 ]
 
@@ -4646,6 +4648,7 @@ dependencies = [
  "merkletree",
  "shared_types",
  "tracing",
+ "typenum",
 ]
 
 [[package]]

@@ -26,6 +26,12 @@ impl From<DecodeError> for Error {
     }
 }
 
+impl From<anyhow::Error> for Error {
+    fn from(e: anyhow::Error) -> Self {
+        Error::Custom(e.to_string())
+    }
+}
+
 impl Display for Error {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "StorageError: {:?}", self)

@@ -5,16 +5,18 @@ use crate::log_store::{
 use crate::IonianKeyValueDB;
 use kvdb_rocksdb::{Database, DatabaseConfig};
 use merkle_tree::Sha3Algorithm;
-use merkletree::merkle::MerkleTree;
+use merkletree::merkle::{next_pow2, MerkleTree};
+use merkletree::proof::Proof;
 use merkletree::store::VecStore;
 use shared_types::{
-    Chunk, ChunkArray, ChunkArrayWithProof, ChunkWithProof, DataRoot, Transaction, TransactionHash,
-    CHUNK_SIZE,
+    Chunk, ChunkArray, ChunkArrayWithProof, ChunkProof, ChunkWithProof, DataRoot, Transaction,
+    TransactionHash, CHUNK_SIZE,
 };
 use ssz::{Decode, DecodeError, Encode};
 use std::cmp;
 use std::path::Path;
 use std::sync::Arc;
+use typenum::U0;
 
 const COL_TX: u32 = 0;
 const COL_TX_HASH_INDEX: u32 = 1;
@@ -25,10 +27,122 @@ const COL_NUM: u32 = 4;
 const CHUNK_KEY_SIZE: usize = 8 + 4;
 const CHUNK_BATCH_SIZE: usize = 1024;
 
+type DataMerkleTree = MerkleTree<[u8; 32], Sha3Algorithm, VecStore<[u8; 32]>>;
+
+/// Here we only encode the top tree leaf data because we cannot build `VecStore` from raw bytes.
+/// If we want to save the whole tree, we'll need to save it as files using disk-related store,
+/// or fork the dependency to expose the VecStore initialization method.
+fn encode_merkle_tree(merkle_tree: &DataMerkleTree, actual_leafs: usize) -> Vec<u8> {
+    let mut data_bytes = Vec::new();
+    data_bytes.extend_from_slice(&actual_leafs.to_be_bytes());
+    // for h in &**merkle_tree.data().unwrap() {
+    for h in merkle_tree.read_range(0, actual_leafs).expect("checked") {
+        data_bytes.extend_from_slice(h.as_slice());
+    }
+    data_bytes
+}
+
+fn decode_merkle_tree(bytes: &[u8]) -> Result<DataMerkleTree> {
+    if bytes.len() < 4 {
+        return Err(Error::Custom(format!(
+            "Merkle tree encoding too short: len={}",
+            bytes.len()
+        )));
+    }
+    let actual_leafs = u32::from_be_bytes(bytes[0..4].try_into().unwrap()) as usize;
+    let expected_len = 4 + 32 * actual_leafs;
+    if bytes.len() != expected_len {
+        return Err(Error::Custom(format!(
+            "Merkle tree encoding incorrect length: len={} expected={}",
+            bytes.len(),
+            expected_len
+        )));
+    }
+    // DataMerkleTree::from_data_store(VecStore::<_>(tree), leafs as usize)
+    //     .map_err(|e| Error::Custom(e.to_string()))
+    Ok(merkle_tree(bytes[4..].chunks(32), actual_leafs))
+}
+
+/// This should be called with all input checked.
+/// FIXME: `merkletree` requires data to be exactly power of 2, so just fill empty data so far.
+fn merkle_tree<'a>(
+    mut leaf_data: impl Iterator<Item = &'a [u8]>,
+    actual_leafs: usize,
+) -> DataMerkleTree {
+    let leafs = next_pow2(actual_leafs as usize);
+    let mut data: Vec<[u8; 32]> = vec![Default::default(); leafs as usize];
+    for i in 0..actual_leafs {
+        data[i as usize].copy_from_slice(leaf_data.next().unwrap());
+    }
+    DataMerkleTree::try_from_iter(data.into_iter().map(Ok)).unwrap()
+}
+
+#[allow(unused)]
+fn tree_size(leafs: usize) -> usize {
+    let mut expected_size = leafs;
+    let mut next_layer = leafs;
+    while next_layer != 0 {
+        next_layer /= next_layer;
+        expected_size += next_layer;
+    }
+    expected_size
+}
+
 pub struct SimpleLogStore {
     kvdb: Arc<dyn IonianKeyValueDB>,
     chunk_store: Arc<dyn LogChunkStore>,
     chunk_batch_size: usize,
+}
+
+impl SimpleLogStore {
+    #[allow(unused)]
+    pub fn open(path: &Path) -> Result<Self> {
+        let mut config = DatabaseConfig::with_columns(COL_NUM);
+        config.enable_statistics = true;
+        let kvdb = Arc::new(Database::open(&config, path)?);
+        Ok(Self {
+            kvdb: kvdb.clone(),
+            chunk_store: Arc::new(BatchChunkStore {
+                kvdb,
+                batch_size: CHUNK_BATCH_SIZE,
+            }),
+            chunk_batch_size: CHUNK_BATCH_SIZE,
+        })
+    }
+
+    pub fn get_top_tree(&self, tx_seq: u64) -> Result<Option<DataMerkleTree>> {
+        let maybe_tree_bytes = self.kvdb.get(COL_TX_MERKLE, &tx_seq.to_be_bytes())?;
+        if maybe_tree_bytes.is_none() {
+            return Ok(None);
+        }
+        Ok(Some(decode_merkle_tree(
+            maybe_tree_bytes.unwrap().as_slice(),
+        )?))
+    }
+
+    pub fn get_sub_tree(
+        &self,
+        tx_seq: u64,
+        batch_start_index: u32,
+    ) -> Result<Option<DataMerkleTree>> {
+        if batch_start_index % self.chunk_batch_size as u32 != 0 {
+            return Err(Error::InvalidBatchBoundary);
+        }
+        let batch_end_index = batch_start_index + self.chunk_batch_size as u32;
+        let maybe_chunk_array = self.chunk_store.get_chunks_by_tx_and_index_range(
+            tx_seq,
+            batch_start_index,
+            batch_end_index,
+        )?;
+        let chunk_array = match maybe_chunk_array {
+            None => return Ok(None),
+            Some(a) => a,
+        };
+        Ok(Some(merkle_tree(
+            chunk_array.data.chunks(CHUNK_SIZE),
+            chunk_array.data.len() / CHUNK_SIZE,
+        )))
+    }
 }
 
 pub struct BatchChunkStore {
@@ -41,14 +155,14 @@ impl LogStoreChunkWrite for BatchChunkStore {
     /// meaning the caller need to process and store chunks with a batch size that is a multiple of `self.batch_size`
     /// and so is the batch boundary.
     fn put_chunks(&self, tx_seq: u64, chunks: ChunkArray) -> Result<()> {
-        if chunks.start_index % self.batch_size as u32 != 0 {
+        if chunks.start_index % self.batch_size as u32 != 0 || chunks.data.len() % CHUNK_SIZE != 0 {
             return Err(Error::InvalidBatchBoundary);
         }
         let mut tx = self.kvdb.transaction();
-        // TODO: If `chunks.end_index` is not in the boundary, we just assume it's the end for now.
-        for index in (chunks.start_index..chunks.end_index).step_by(self.batch_size) {
+        let end_index = chunks.start_index + (chunks.data.len() / CHUNK_SIZE) as u32;
+        for index in (chunks.start_index..end_index).step_by(self.batch_size) {
             let key = chunk_key(tx_seq, index);
-            let end = cmp::min(index + self.batch_size as u32, chunks.end_index) as usize;
+            let end = cmp::min(index + self.batch_size as u32, end_index) as usize;
             tx.put(COL_CHUNK, &key, &chunks.data[index as usize..end]);
         }
         self.kvdb.write(tx)?;
@@ -76,28 +190,33 @@ impl LogStoreChunkRead for BatchChunkStore {
         let mut data =
             Vec::with_capacity(((index_end - index_start) as usize * CHUNK_SIZE) as usize);
         for index in (index_start..index_end).step_by(self.batch_size) {
-            let key_index = index / self.batch_size as u32;
-            let key = chunk_key(tx_seq, key_index);
-            let end = cmp::min(key_index + self.batch_size as u32, index_end) as usize;
+            let key = chunk_key(tx_seq, index);
+            let end = cmp::min(index + self.batch_size as u32, index_end) as usize;
             let maybe_batch_data = self.kvdb.get(COL_CHUNK, &key)?;
             if maybe_batch_data.is_none() {
                 return Ok(None);
             }
             let batch_data = maybe_batch_data.unwrap();
-            let batch_end = end % self.batch_size;
-            if batch_data.len() < batch_end {
-                return Err(Error::Custom(format!(
-                    "read a partial chunk batch: size={}, expected={}",
-                    batch_data.len(),
-                    batch_end
-                )));
+            // If the loaded data of the last chunk is shorted than `batch_end`, we return the data
+            // without error and leave the caller to check if there is any error.
+            if batch_data.len() != self.batch_size * CHUNK_SIZE {
+                //
+                if index / self.batch_size as u32 == (index_end - 1) / self.batch_size as u32
+                    && index_end % self.batch_size as u32 != 0
+                {
+                    trace!("read partial last batch");
+                } else {
+                    return Err(Error::Custom("incomplete chunk batch".to_string()));
+                }
             }
-            data.extend_from_slice(&batch_data[index as usize % self.batch_size..batch_end]);
+            let batch_end = cmp::min(self.batch_size, end % self.batch_size) * CHUNK_SIZE;
+            data.extend_from_slice(
+                &batch_data[(index as usize % self.batch_size) * CHUNK_SIZE..batch_end],
+            );
         }
         Ok(Some(ChunkArray {
             data,
             start_index: index_start,
-            end_index: index_end,
         }))
     }
 }
@@ -197,17 +316,14 @@ impl LogStoreWrite for SimpleLogStore {
                 )));
             }
             let chunks_iter = chunks.as_ref().unwrap().data.chunks(CHUNK_SIZE);
-            let merkle_tree = MerkleTree::<[u8; 32], Sha3Algorithm, VecStore<_>>::try_from_iter(
-                chunks_iter.map(|chunk| chunk.try_into().map_err(|e| anyhow::anyhow!("{}", e))),
-            )
-            .map_err(|e| Error::Custom(format!("{:?}", e)))?;
+            let merkle_tree = merkle_tree(chunks_iter, batch_end_index % self.chunk_batch_size);
             let merkle_root = merkle_tree.root();
             chunk_batch_roots.push(merkle_root);
         }
-        let merkle_tree = MerkleTree::<[u8; 32], Sha3Algorithm, VecStore<_>>::try_from_iter(
-            chunk_batch_roots.into_iter().map(Ok),
-        )
-        .map_err(|e| Error::Custom(format!("{:?}", e)))?;
+        let merkle_tree = merkle_tree(
+            chunk_batch_roots.iter().map(|e| e.as_slice()),
+            chunk_batch_roots.len(),
+        );
         if merkle_tree.root() != tx.data_merkle_root.0 {
             // TODO: Delete all chunks?
             return Err(Error::Custom(format!(
@@ -216,14 +332,11 @@ impl LogStoreWrite for SimpleLogStore {
                 tx.data_merkle_root,
             )));
         }
-        let mut tree_bytes = Vec::new();
-        for h in &**merkle_tree.data().unwrap() {
-            tree_bytes.extend_from_slice(h.as_slice());
-        }
-        self.kvdb
-            .put(COL_TX_MERKLE, &tx_seq.to_be_bytes(), &tree_bytes)?;
-        // let tree = (**merkle_tree.data().unwrap()).to_vec();
-        // let new_merkle_tree = MerkleTree::from_data_store(VecStore::<[u8; 32]>(tree), chunk_index_end - 1);
+        self.kvdb.put(
+            COL_TX_MERKLE,
+            &tx_seq.to_be_bytes(),
+            &encode_merkle_tree(&merkle_tree, chunk_batch_roots.len()),
+        )?;
         // TODO: Mark the tx as completed.
         Ok(())
     }
@@ -260,10 +373,41 @@ impl LogStoreRead for SimpleLogStore {
 
     fn get_chunk_with_proof_by_tx_and_index(
         &self,
-        _tx_seq: u64,
-        _index: u32,
+        tx_seq: u64,
+        index: u32,
     ) -> Result<Option<ChunkWithProof>> {
-        todo!()
+        let maybe_top_tree = self.get_top_tree(tx_seq)?;
+        let top_tree = match maybe_top_tree {
+            None => return Ok(None),
+            Some(t) => t,
+        };
+        let batch_index = index as usize / self.chunk_batch_size;
+        let top_proof = top_tree.gen_proof(batch_index)?;
+        let maybe_subtree =
+            self.get_sub_tree(tx_seq, (batch_index * self.chunk_batch_size) as u32)?;
+        let sub_tree = match maybe_subtree {
+            None => return Ok(None),
+            Some(t) => t,
+        };
+        let offset = index as usize % self.chunk_batch_size;
+        let sub_proof = sub_tree.gen_proof(offset)?;
+        if top_proof.item() != sub_proof.root() {
+            return Err(Error::Custom(format!(
+                "top tree and sub tree mismatch: top_leaf={:?}, sub_root={:?}",
+                top_proof.item(),
+                sub_proof.root()
+            )));
+        }
+        let mut lemma = sub_proof.lemma().clone();
+        let mut path = sub_proof.path().clone();
+        assert!(lemma.pop().is_some());
+        lemma.extend_from_slice(&top_proof.lemma()[1..]);
+        path.extend_from_slice(top_proof.path());
+        let proof = Proof::new::<U0, U0>(None, lemma, path)?;
+        Ok(Some(ChunkWithProof {
+            chunk: Chunk(sub_tree.read_at(offset)?),
+            proof: ChunkProof::from_merkle_proof(&proof),
+        }))
     }
 
     fn get_chunks_with_proof_by_tx_and_index_range(
