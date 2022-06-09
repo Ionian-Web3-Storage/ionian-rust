@@ -2763,7 +2763,6 @@ name = "miner"
 version = "0.1.0"
 dependencies = [
  "network",
- "shared_types",
  "task_executor",
  "tokio",
  "tracing",
@@ -3008,6 +3007,7 @@ dependencies = [
  "serde",
  "serde_derive",
  "sha2 0.9.9",
+ "shared_types",
  "slog-async",
  "slog-term",
  "smallvec",
@@ -3967,7 +3967,9 @@ dependencies = [
 name = "shared_types"
 version = "0.1.0"
 dependencies = [
- "network",
+ "eth2_ssz",
+ "eth2_ssz_derive",
+ "eth2_ssz_types",
 ]
 
 [[package]]

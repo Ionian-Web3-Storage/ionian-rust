@@ -1,7 +1,7 @@
 use miner::{MinerMessage, MinerService};
 use network::rpc::*;
 use network::{MessageId, NetworkGlobals, PeerId, PeerRequestId, Request, Response};
-use shared_types::{RequestId, ServiceMessage};
+use network::{RequestId, ServiceMessage};
 use std::sync::Arc;
 use sync::{SyncMessage, SyncService};
 use tokio::sync::mpsc;

@@ -5,7 +5,6 @@ edition = "2021"
 
 [dependencies]
 network = { path = "../network" }
-shared_types = { path = "../shared_types" }
 task_executor = { path = "../../common/task_executor" }
 tokio = { version = "1.18.2", features = ["full"] }
 tracing = "0.1.34"

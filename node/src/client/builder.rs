@@ -1,8 +1,8 @@
 use super::{Client, RuntimeContext};
+use network::ServiceMessage;
 use network::{NetworkConfig, NetworkGlobals};
 use rpc::RPCConfig;
 use service::NetworkService;
-use shared_types::ServiceMessage;
 use std::sync::Arc;
 use tokio::sync::mpsc::UnboundedSender;
 

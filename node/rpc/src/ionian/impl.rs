@@ -4,7 +4,7 @@ use crate::types::Status;
 use crate::Context;
 use jsonrpsee::core::async_trait;
 use network::{rpc::StatusMessage, NetworkGlobals};
-use shared_types::{RequestId, ServiceMessage};
+use network::{RequestId, ServiceMessage};
 use std::sync::Arc;
 use tokio::sync::mpsc::UnboundedSender;
 

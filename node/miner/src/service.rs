@@ -1,5 +1,5 @@
 use crate::MinerNetworkContext;
-use shared_types::ServiceMessage;
+use network::ServiceMessage;
 use tokio::sync::mpsc;
 
 const HEARTBEAT_INTERVAL_SEC: u64 = 10;

@@ -1,6 +1,6 @@
 use crate::SyncNetworkContext;
 use network::PeerId;
-use shared_types::ServiceMessage;
+use network::ServiceMessage;
 use tokio::sync::mpsc;
 
 #[derive(Debug)]

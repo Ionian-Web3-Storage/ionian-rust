@@ -87,3 +87,48 @@ pub use peer_manager::{
     ConnectionDirection, PeerConnectionStatus, PeerInfo, PeerManager, SyncInfo, SyncStatus,
 };
 pub use service::{load_private_key, Context, Libp2pEvent, Service, NETWORK_KEY_FILENAME};
+
+/// Application level requests sent to the network.
+#[derive(Debug, Clone, Copy)]
+pub enum RequestId {
+    Router,
+}
+
+/// Types of messages that the network service can receive.
+#[derive(Debug)]
+pub enum ServiceMessage {
+    /// Send an RPC request to the libp2p service.
+    SendRequest {
+        peer_id: PeerId,
+        request: Request,
+        request_id: RequestId,
+    },
+    /// Send a successful Response to the libp2p service.
+    SendResponse {
+        peer_id: PeerId,
+        response: Response,
+        id: PeerRequestId,
+    },
+    /// Send an error response to an RPC request.
+    SendErrorResponse {
+        peer_id: PeerId,
+        error: rpc::RPCResponseErrorCode,
+        reason: String,
+        id: PeerRequestId,
+    },
+    /// Publish a list of messages to the gossipsub protocol.
+    Publish { messages: Vec<PubsubMessage> },
+    /// Reports a peer to the peer manager for performing an action.
+    ReportPeer {
+        peer_id: PeerId,
+        action: PeerAction,
+        source: ReportSource,
+        msg: &'static str,
+    },
+    /// Disconnect an ban a peer, providing a reason.
+    GoodbyePeer {
+        peer_id: PeerId,
+        reason: rpc::GoodbyeReason,
+        source: ReportSource,
+    },
+}

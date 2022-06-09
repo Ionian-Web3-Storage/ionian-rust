@@ -27,6 +27,7 @@ regex = "1.5.5"
 serde = { version = "1.0.116", features = ["derive"] }
 serde_derive = "1.0.116"
 sha2 = "0.9.1"
+shared_types = { path = "../shared_types" }
 smallvec = "1.6.1"
 snap = "1.0.1"
 strum = { version = "0.24.0", features = ["derive"] }

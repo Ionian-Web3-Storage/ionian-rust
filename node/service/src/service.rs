@@ -5,7 +5,7 @@ use futures::prelude::*;
 use network::Service as LibP2PService;
 use network::{BehaviourEvent, NetworkGlobals};
 use network::{Context, Libp2pEvent, NetworkConfig};
-use shared_types::{RequestId, ServiceMessage};
+use network::{RequestId, ServiceMessage};
 use std::sync::Arc;
 use task_executor::ShutdownReason;
 use tokio::sync::mpsc;

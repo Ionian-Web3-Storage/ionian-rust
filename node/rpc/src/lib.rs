@@ -10,7 +10,7 @@ mod types;
 use futures::channel::mpsc::Sender;
 use jsonrpsee::http_server::{HttpServerBuilder, HttpServerHandle};
 use network::NetworkGlobals;
-use shared_types::ServiceMessage;
+use network::ServiceMessage;
 use std::error::Error;
 use std::sync::Arc;
 use task_executor::ShutdownReason;

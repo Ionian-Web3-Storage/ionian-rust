@@ -1,6 +1,6 @@
 #![allow(dead_code)]
 
-use shared_types::ServiceMessage;
+use network::ServiceMessage;
 use tokio::sync::mpsc;
 
 pub(crate) struct SyncNetworkContext {
