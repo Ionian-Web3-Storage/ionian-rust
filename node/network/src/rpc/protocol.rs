@@ -1,13 +1,14 @@
 use super::methods::*;
 use crate::rpc::{
     codec::{base::BaseInboundCodec, ssz_snappy::SSZSnappyInboundCodec, InboundCodec},
-    methods::{MaxErrorLen, ResponseTermination, MAX_ERROR_LEN},
+    methods::{MaxErrorLen, ResponseTermination, MAX_CHUNKS_LENGTH, MAX_ERROR_LEN},
     MaxRequestBlocks, MAX_REQUEST_BLOCKS,
 };
 use futures::future::BoxFuture;
 use futures::prelude::{AsyncRead, AsyncWrite};
 use futures::{FutureExt, StreamExt};
 use libp2p::core::{InboundUpgrade, ProtocolName, UpgradeInfo};
+use shared_types::{ChunkArray, ChunkArrayWithProof, ChunkProof};
 use ssz::Encode;
 use ssz_types::VariableList;
 use std::io;
@@ -40,6 +41,28 @@ lazy_static! {
         VariableList::<u8, MaxErrorLen>::from(vec![0u8; MAX_ERROR_LEN as usize])
             .as_ssz_bytes()
             .len();
+    pub static ref CHUNKS_RESPONSE_MIN: usize = ChunkArrayWithProof {
+        chunks: ChunkArray {
+            data: vec![],
+            start_index: 0,
+            end_index: 0,
+        },
+        start_proof: ChunkProof {},
+        end_proof: ChunkProof {},
+    }
+    .as_ssz_bytes()
+    .len();
+    pub static ref CHUNKS_RESPONSE_MAX: usize = ChunkArrayWithProof {
+        chunks: ChunkArray {
+            data: vec![0u8; MAX_CHUNKS_LENGTH as usize],
+            start_index: 0,
+            end_index: 0,
+        },
+        start_proof: ChunkProof {},
+        end_proof: ChunkProof {},
+    }
+    .as_ssz_bytes()
+    .len();
 }
 
 // /// The maximum bytes that can be sent across the RPC pre-merge.
@@ -70,6 +93,9 @@ pub enum Protocol {
     Ping,
     /// TODO
     DataByHash,
+
+    /// The Chunk sync protocol.
+    GetChunks,
 }
 
 /// RPC Versions
@@ -92,6 +118,7 @@ impl std::fmt::Display for Protocol {
             Protocol::Goodbye => "goodbye",
             Protocol::Ping => "ping",
             Protocol::DataByHash => "data_by_hash",
+            Protocol::GetChunks => "get_chunks",
         };
         f.write_str(repr)
     }
@@ -131,6 +158,7 @@ impl UpgradeInfo for RPCProtocol {
             ProtocolId::new(Protocol::Goodbye, Version::V1, Encoding::SSZSnappy),
             ProtocolId::new(Protocol::Ping, Version::V1, Encoding::SSZSnappy),
             ProtocolId::new(Protocol::DataByHash, Version::V1, Encoding::SSZSnappy),
+            ProtocolId::new(Protocol::GetChunks, Version::V1, Encoding::SSZSnappy),
         ]
     }
 }
@@ -191,6 +219,10 @@ impl ProtocolId {
                 // TODO(thegaram)
                 RpcLimits::new(1, *DATA_BY_HASH_REQUEST_MAX)
             }
+            Protocol::GetChunks => RpcLimits::new(
+                <GetChunksRequest as Encode>::ssz_fixed_len(),
+                <GetChunksRequest as Encode>::ssz_fixed_len(),
+            ),
         }
     }
 
@@ -213,6 +245,8 @@ impl ProtocolId {
                 <IonianData as Encode>::ssz_fixed_len(),
                 <IonianData as Encode>::ssz_fixed_len(),
             ),
+
+            Protocol::GetChunks => RpcLimits::new(*CHUNKS_RESPONSE_MIN, *CHUNKS_RESPONSE_MAX),
         }
     }
 }
@@ -294,6 +328,7 @@ pub enum InboundRequest {
     Goodbye(GoodbyeReason),
     Ping(Ping),
     DataByHash(DataByHashRequest),
+    GetChunks(GetChunksRequest),
 }
 
 impl UpgradeInfo for InboundRequest {
@@ -331,6 +366,11 @@ impl InboundRequest {
                 Version::V1,
                 Encoding::SSZSnappy,
             )],
+            InboundRequest::GetChunks(_) => vec![ProtocolId::new(
+                Protocol::GetChunks,
+                Version::V1,
+                Encoding::SSZSnappy,
+            )],
         }
     }
 
@@ -343,6 +383,7 @@ impl InboundRequest {
             InboundRequest::Goodbye(_) => 0,
             InboundRequest::DataByHash(req) => req.hashes.len() as u64,
             InboundRequest::Ping(_) => 1,
+            InboundRequest::GetChunks(_) => 1,
         }
     }
 
@@ -353,6 +394,7 @@ impl InboundRequest {
             InboundRequest::Goodbye(_) => Protocol::Goodbye,
             InboundRequest::Ping(_) => Protocol::Ping,
             InboundRequest::DataByHash(_) => Protocol::DataByHash,
+            InboundRequest::GetChunks(_) => Protocol::GetChunks,
         }
     }
 
@@ -366,6 +408,7 @@ impl InboundRequest {
             InboundRequest::Status(_) => unreachable!(),
             InboundRequest::Goodbye(_) => unreachable!(),
             InboundRequest::Ping(_) => unreachable!(),
+            InboundRequest::GetChunks(_) => unreachable!(),
         }
     }
 }
@@ -482,6 +525,9 @@ impl std::fmt::Display for InboundRequest {
             InboundRequest::Ping(ping) => write!(f, "Ping: {}", ping.data),
             InboundRequest::DataByHash(req) => {
                 write!(f, "Data by hash: {:?}", req)
+            }
+            InboundRequest::GetChunks(req) => {
+                write!(f, "Get Chunks: {:?}", req)
             }
         }
     }

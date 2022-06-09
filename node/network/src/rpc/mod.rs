@@ -22,8 +22,8 @@ pub(crate) use protocol::{InboundRequest, RPCProtocol};
 
 pub use handler::SubstreamId;
 pub use methods::{
-    DataByHashRequest, GoodbyeReason, IonianData, MaxRequestBlocks, RPCResponseErrorCode,
-    ResponseTermination, StatusMessage, MAX_REQUEST_BLOCKS,
+    DataByHashRequest, GetChunksRequest, GoodbyeReason, IonianData, MaxRequestBlocks,
+    RPCResponseErrorCode, ResponseTermination, StatusMessage, MAX_REQUEST_BLOCKS,
 };
 pub(crate) use outbound::OutboundRequest;
 pub use protocol::{max_rpc_size, Protocol, RPCError};
@@ -40,7 +40,7 @@ pub trait ReqId: Send + 'static + std::fmt::Debug + Copy + Clone {}
 impl<T> ReqId for T where T: Send + 'static + std::fmt::Debug + Copy + Clone {}
 
 /// RPC events sent from Lighthouse.
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub enum RPCSend<Id> {
     /// A request sent from Lighthouse.
     ///
@@ -58,7 +58,7 @@ pub enum RPCSend<Id> {
 }
 
 /// RPC events received from outside Lighthouse.
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub enum RPCReceived<Id> {
     /// A request received from the outside.
     ///
@@ -118,6 +118,7 @@ impl<Id: ReqId> RPC<Id> {
             .n_every(Protocol::Status, 5, Duration::from_secs(15))
             .one_every(Protocol::Goodbye, Duration::from_secs(10))
             .n_every(Protocol::DataByHash, 128, Duration::from_secs(10))
+            .n_every(Protocol::GetChunks, 128, Duration::from_secs(10))
             .build()
             .expect("Configuration parameters are valid");
         RPC {

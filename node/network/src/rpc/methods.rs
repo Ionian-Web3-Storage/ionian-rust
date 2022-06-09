@@ -9,6 +9,7 @@ use ssz_types::{
 use std::ops::Deref;
 use strum::IntoStaticStr;
 pub type Hash256 = ethereum_types::H256;
+use shared_types::ChunkArrayWithProof;
 
 pub use ssz_types::{typenum, typenum::Unsigned, BitList, BitVector, FixedVector};
 
@@ -23,6 +24,9 @@ pub const MAX_ERROR_LEN: u64 = 256;
 /// Maximum length of data message.
 pub type MaxDataLen = U256;
 pub const MAX_DATA_LEN: u64 = 256;
+
+// Maximum length of GetChunksResponse chunk data.
+pub const MAX_CHUNKS_LENGTH: usize = 10 * 1024 * 1024; // 10M
 
 #[derive(Encode, Decode, Clone, Debug, PartialEq)]
 pub struct IonianData {
@@ -174,6 +178,15 @@ pub struct DataByHashRequest {
     pub hashes: VariableList<Hash256, MaxRequestBlocks>,
 }
 
+/// Request a chunk array from a peer.
+#[derive(Encode, Decode, Clone, Debug, PartialEq)]
+pub struct GetChunksRequest {
+    // FIXME(thegaram): change this to data_root when we update the primary key in the storage layer
+    pub tx_seq: u64,
+    pub index_start: u32,
+    pub index_end: u32,
+}
+
 /* RPC Handling and Grouping */
 // Collection of enums and structs used by the Codecs to encode/decode RPC messages
 
@@ -187,6 +200,9 @@ pub enum RPCResponse {
 
     /// A response to a get DATA_BY_HASH request.
     DataByHash(Box<IonianData>),
+
+    /// A response to a GET_CHUNKS request.
+    Chunks(ChunkArrayWithProof),
 }
 
 /// Indicates which response is being terminated by a stream termination response.
@@ -198,7 +214,7 @@ pub enum ResponseTermination {
 
 /// The structured response containing a result/code indicating success or failure
 /// and the contents of the response
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub enum RPCCodedResponse {
     /// The response is a successful.
     Success(RPCResponse),
@@ -255,6 +271,7 @@ impl RPCCodedResponse {
                 RPCResponse::Status(_) => false,
                 RPCResponse::Pong(_) => false,
                 RPCResponse::DataByHash(_) => true,
+                RPCResponse::Chunks(_) => false,
             },
             RPCCodedResponse::Error(_, _) => true,
             // Stream terminations are part of responses that have chunks
@@ -306,6 +323,13 @@ impl std::fmt::Display for RPCResponse {
             RPCResponse::Pong(ping) => write!(f, "Pong: {}", ping.data),
             RPCResponse::DataByHash(data) => {
                 write!(f, "DataByHash: Hash: {:?}", data.hash)
+            }
+            RPCResponse::Chunks(data) => {
+                write!(
+                    f,
+                    "Chunks Response, data length: {}",
+                    data.chunks.data.len()
+                )
             }
         }
     }

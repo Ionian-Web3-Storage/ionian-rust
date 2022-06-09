@@ -68,6 +68,8 @@ pub struct RPCRateLimiter {
     status_rl: Limiter<PeerId>,
     /// DataByHash rate limiter.
     data_by_hash_rl: Limiter<PeerId>,
+    /// GetChunks rate limiter.
+    get_chunks_rl: Limiter<PeerId>,
 }
 
 /// Error type for non conformant requests
@@ -89,6 +91,8 @@ pub struct RPCRateLimiterBuilder {
     status_quota: Option<Quota>,
     /// Quota for the DataByHash protocol.
     data_by_hash_quota: Option<Quota>,
+    /// Quota for the GetChunks protocol.
+    get_chunks_quota: Option<Quota>,
 }
 
 impl RPCRateLimiterBuilder {
@@ -105,6 +109,7 @@ impl RPCRateLimiterBuilder {
             Protocol::Status => self.status_quota = q,
             Protocol::Goodbye => self.goodbye_quota = q,
             Protocol::DataByHash => self.data_by_hash_quota = q,
+            Protocol::GetChunks => self.get_chunks_quota = q,
         }
         self
     }
@@ -140,12 +145,16 @@ impl RPCRateLimiterBuilder {
         let data_by_hash_quota = self
             .data_by_hash_quota
             .ok_or("DataByHash quota not specified")?;
+        let get_chunks_quota = self
+            .get_chunks_quota
+            .ok_or("GetChunks quota not specified")?;
 
         // create the rate limiters
         let ping_rl = Limiter::from_quota(ping_quota)?;
         let status_rl = Limiter::from_quota(status_quota)?;
         let goodbye_rl = Limiter::from_quota(goodbye_quota)?;
         let data_by_hash_rl = Limiter::from_quota(data_by_hash_quota)?;
+        let get_chunks_rl = Limiter::from_quota(get_chunks_quota)?;
 
         // check for peers to prune every 30 seconds, starting in 30 seconds
         let prune_every = tokio::time::Duration::from_secs(30);
@@ -157,6 +166,7 @@ impl RPCRateLimiterBuilder {
             status_rl,
             goodbye_rl,
             data_by_hash_rl,
+            get_chunks_rl,
             init_time: Instant::now(),
         })
     }
@@ -200,6 +210,7 @@ impl RPCRateLimiter {
             Protocol::Status => &mut self.status_rl,
             Protocol::Goodbye => &mut self.goodbye_rl,
             Protocol::DataByHash => &mut self.data_by_hash_rl,
+            Protocol::GetChunks => &mut self.get_chunks_rl,
         };
         check(limiter)
     }
@@ -210,6 +221,7 @@ impl RPCRateLimiter {
         self.status_rl.prune(time_since_start);
         self.goodbye_rl.prune(time_since_start);
         self.data_by_hash_rl.prune(time_since_start);
+        self.get_chunks_rl.prune(time_since_start);
     }
 }
 

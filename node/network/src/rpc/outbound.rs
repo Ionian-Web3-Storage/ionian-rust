@@ -34,6 +34,7 @@ pub enum OutboundRequest {
     Goodbye(GoodbyeReason),
     Ping(Ping),
     DataByHash(DataByHashRequest),
+    GetChunks(GetChunksRequest),
 }
 
 impl UpgradeInfo for OutboundRequestContainer {
@@ -71,6 +72,11 @@ impl OutboundRequest {
                 Version::V1,
                 Encoding::SSZSnappy,
             )],
+            OutboundRequest::GetChunks(_) => vec![ProtocolId::new(
+                Protocol::GetChunks,
+                Version::V1,
+                Encoding::SSZSnappy,
+            )],
         }
     }
 
@@ -83,6 +89,7 @@ impl OutboundRequest {
             OutboundRequest::Goodbye(_) => 0,
             OutboundRequest::Ping(_) => 1,
             OutboundRequest::DataByHash(req) => req.hashes.len() as u64,
+            OutboundRequest::GetChunks(_) => 1,
         }
     }
 
@@ -93,6 +100,7 @@ impl OutboundRequest {
             OutboundRequest::Goodbye(_) => Protocol::Goodbye,
             OutboundRequest::Ping(_) => Protocol::Ping,
             OutboundRequest::DataByHash(_) => Protocol::DataByHash,
+            OutboundRequest::GetChunks(_) => Protocol::GetChunks,
         }
     }
 
@@ -106,6 +114,7 @@ impl OutboundRequest {
             OutboundRequest::Status(_) => unreachable!(),
             OutboundRequest::Goodbye(_) => unreachable!(),
             OutboundRequest::Ping(_) => unreachable!(),
+            OutboundRequest::GetChunks(_) => unreachable!(),
         }
     }
 }
@@ -160,6 +169,9 @@ impl std::fmt::Display for OutboundRequest {
             OutboundRequest::Ping(ping) => write!(f, "Ping: {}", ping.data),
             OutboundRequest::DataByHash(req) => {
                 write!(f, "Data by hash: {:?}", req)
+            }
+            OutboundRequest::GetChunks(req) => {
+                write!(f, "GetChunks: {:?}", req)
             }
         }
     }

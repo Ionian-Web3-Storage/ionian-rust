@@ -6,6 +6,7 @@ use crate::peer_manager::{
     ConnectionDirection, PeerManager, PeerManagerEvent,
 };
 use crate::rpc::methods::DataByHashRequest;
+use crate::rpc::methods::GetChunksRequest;
 use crate::rpc::*;
 use crate::service::Context as ServiceContext;
 use crate::types::{GossipEncoding, GossipKind, GossipTopic, SnappyTransform};
@@ -29,6 +30,7 @@ use libp2p::{
     },
     NetworkBehaviour, PeerId,
 };
+use shared_types::ChunkArrayWithProof;
 use std::{
     collections::VecDeque,
     sync::Arc,
@@ -519,6 +521,9 @@ impl<AppReqId: ReqId> Behaviour<AppReqId> {
             Request::DataByHash { .. } => {
                 metrics::inc_counter_vec(&metrics::TOTAL_RPC_REQUESTS, &["data_by_hash"])
             }
+            Request::GetChunks { .. } => {
+                metrics::inc_counter_vec(&metrics::TOTAL_RPC_REQUESTS, &["get_chunks"])
+            }
         }
         self.add_event(BehaviourEvent::RequestReceived {
             peer_id,
@@ -727,6 +732,9 @@ where
                     InboundRequest::DataByHash(req) => {
                         self.propagate_request(peer_request_id, peer_id, Request::DataByHash(req))
                     }
+                    InboundRequest::GetChunks(req) => {
+                        self.propagate_request(peer_request_id, peer_id, Request::GetChunks(req))
+                    }
                 }
             }
             Ok(RPCReceived::Response(id, resp)) => {
@@ -742,6 +750,9 @@ where
                     }
                     RPCResponse::DataByHash(resp) => {
                         self.propagate_response(id, peer_id, Response::DataByHash(Some(resp)))
+                    }
+                    RPCResponse::Chunks(resp) => {
+                        self.propagate_response(id, peer_id, Response::Chunks(resp))
                     }
                 }
             }
@@ -935,6 +946,8 @@ pub enum Request {
     Status(StatusMessage),
     /// A data by hash request.
     DataByHash(DataByHashRequest),
+    /// A GetChunks request.
+    GetChunks(GetChunksRequest),
 }
 
 impl std::convert::From<Request> for OutboundRequest {
@@ -942,6 +955,7 @@ impl std::convert::From<Request> for OutboundRequest {
         match req {
             Request::Status(s) => OutboundRequest::Status(s),
             Request::DataByHash(r) => OutboundRequest::DataByHash(r),
+            Request::GetChunks(r) => OutboundRequest::GetChunks(r),
         }
     }
 }
@@ -958,6 +972,8 @@ pub enum Response {
     Status(StatusMessage),
     /// A response to a get DATA_BY_HASH request. A None response signals the end of the batch.
     DataByHash(Option<Box<IonianData>>),
+    /// A response to a GET_CHUNKS request.
+    Chunks(ChunkArrayWithProof),
 }
 
 impl std::convert::From<Response> for RPCCodedResponse {
@@ -968,6 +984,7 @@ impl std::convert::From<Response> for RPCCodedResponse {
                 Some(b) => RPCCodedResponse::Success(RPCResponse::DataByHash(b)),
                 None => RPCCodedResponse::StreamTermination(ResponseTermination::DataByHash),
             },
+            Response::Chunks(c) => RPCCodedResponse::Success(RPCResponse::Chunks(c)),
         }
     }
 }

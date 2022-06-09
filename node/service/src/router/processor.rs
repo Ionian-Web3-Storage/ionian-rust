@@ -2,6 +2,7 @@ use miner::{MinerMessage, MinerService};
 use network::rpc::*;
 use network::{MessageId, NetworkGlobals, PeerId, PeerRequestId, Request, Response};
 use network::{RequestId, ServiceMessage};
+use shared_types::ChunkArrayWithProof;
 use std::sync::Arc;
 use sync::{SyncMessage, SyncService};
 use tokio::sync::mpsc;
@@ -91,6 +92,17 @@ impl Processor {
         // EMPTY
     }
 
+    /// Handle a `GetChunks` request from the peer.
+    pub fn on_get_chunks_request(
+        &mut self,
+        _peer_id: PeerId,
+        _request_id: PeerRequestId,
+        request: GetChunksRequest,
+    ) {
+        info!("Received GetChunks request: {:?}", request);
+        // TODO(Thegaram): Send response
+    }
+
     /// Handle a `DataByHash` response from the peer.
     /// A `data` behaves as a stream which is terminated on a `None` response.
     pub fn on_data_by_hash_response(
@@ -100,6 +112,17 @@ impl Processor {
         data: Option<Box<IonianData>>,
     ) {
         trace!(%peer_id, ?data, "Received DataByHash response");
+    }
+
+    /// Handle a `Chunks` response from the peer.
+    pub fn on_chunks_response(
+        &mut self,
+        _peer_id: PeerId,
+        _request_id: RequestId,
+        data: ChunkArrayWithProof,
+    ) {
+        info!("Received Chunks response: {:?}", data);
+        // TODO(Thegaram): Handle response
     }
 
     /// Process a gossip message declaring a new block.

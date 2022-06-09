@@ -460,6 +460,7 @@ impl PeerManager {
                     Protocol::Goodbye => PeerAction::LowToleranceError,
                     Protocol::Status => PeerAction::LowToleranceError,
                     Protocol::DataByHash => PeerAction::MidToleranceError,
+                    Protocol::GetChunks => PeerAction::MidToleranceError,
                 },
             },
             RPCError::SSZDecodeError(_) => PeerAction::Fatal,
@@ -473,6 +474,7 @@ impl PeerManager {
                     Protocol::Goodbye => return,
                     Protocol::Status => PeerAction::LowToleranceError,
                     Protocol::DataByHash => return,
+                    Protocol::GetChunks => return,
                 }
             }
             RPCError::StreamTimeout => match direction {
@@ -486,6 +488,7 @@ impl PeerManager {
                     Protocol::Goodbye => return,
                     Protocol::Status => return,
                     Protocol::DataByHash => PeerAction::MidToleranceError,
+                    Protocol::GetChunks => PeerAction::MidToleranceError,
                 },
             },
             RPCError::NegotiationTimeout => PeerAction::LowToleranceError,

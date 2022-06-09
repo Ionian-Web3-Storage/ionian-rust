@@ -5,6 +5,7 @@ use crate::rpc::{
 };
 use crate::rpc::{InboundRequest, OutboundRequest, RPCCodedResponse, RPCResponse};
 use libp2p::bytes::BytesMut;
+use shared_types::ChunkArrayWithProof;
 use snap::read::FrameDecoder;
 use snap::write::FrameEncoder;
 use ssz::{Decode, Encode};
@@ -50,6 +51,7 @@ impl Encoder<RPCCodedResponse> for SSZSnappyInboundCodec {
                 RPCResponse::Status(res) => res.as_ssz_bytes(),
                 RPCResponse::Pong(res) => res.data.as_ssz_bytes(),
                 RPCResponse::DataByHash(res) => res.as_ssz_bytes(),
+                RPCResponse::Chunks(res) => res.as_ssz_bytes(),
             },
             RPCCodedResponse::Error(_, err) => err.as_ssz_bytes(),
             RPCCodedResponse::StreamTermination(_) => {
@@ -157,6 +159,7 @@ impl Encoder<OutboundRequest> for SSZSnappyOutboundCodec {
             OutboundRequest::Goodbye(req) => req.as_ssz_bytes(),
             OutboundRequest::Ping(req) => req.as_ssz_bytes(),
             OutboundRequest::DataByHash(req) => req.hashes.as_ssz_bytes(),
+            OutboundRequest::GetChunks(req) => req.as_ssz_bytes(),
         };
         // SSZ encoded bytes should be within `max_packet_size`
         if bytes.len() > self.max_packet_size {
@@ -343,6 +346,9 @@ fn handle_v1_request(
         Protocol::DataByHash => Ok(Some(InboundRequest::DataByHash(DataByHashRequest {
             hashes: VariableList::from_ssz_bytes(decoded_buffer)?,
         }))),
+        Protocol::GetChunks => Ok(Some(InboundRequest::GetChunks(
+            GetChunksRequest::from_ssz_bytes(decoded_buffer)?,
+        ))),
     }
 }
 
@@ -367,6 +373,9 @@ fn handle_v1_response(
         Protocol::DataByHash => Ok(Some(RPCResponse::DataByHash(Box::new(
             IonianData::from_ssz_bytes(decoded_buffer)?,
         )))),
+        Protocol::GetChunks => Ok(Some(RPCResponse::Chunks(
+            ChunkArrayWithProof::from_ssz_bytes(decoded_buffer)?,
+        ))),
     }
 }
 
