@@ -1,0 +1,14 @@
+[package]
+name = "storage"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+kvdb-rocksdb = "0.15.2"
+kvdb = "0.11.0"
+shared_types = { path = "../shared_types" }
+ethereum-types = "0.13.1"
+eth2_ssz = "0.4.0"
+merkletree = "0.21.0"
+merkle_tree = { path = "../../common/merkle_tree"}
+anyhow = "1.0.57"
