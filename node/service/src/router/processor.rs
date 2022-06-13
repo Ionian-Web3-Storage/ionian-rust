@@ -1,9 +1,11 @@
 use miner::{MinerMessage, MinerService};
-use network::rpc::*;
-use network::{MessageId, NetworkGlobals, PeerId, PeerRequestId, Request, Response};
-use network::{RequestId, ServiceMessage};
+use network::{
+    rpc::*, MessageId, NetworkGlobals, PeerId, PeerRequestId, Request, RequestId, Response,
+    ServiceMessage,
+};
 use shared_types::ChunkArrayWithProof;
 use std::sync::Arc;
+use storage::log_store::Store;
 use sync::{SyncMessage, SyncService};
 use tokio::sync::mpsc;
 
@@ -14,7 +16,6 @@ pub struct Processor {
     network: HandlerNetworkContext,
 
     /// A channel to the syncing thread.
-    #[allow(dead_code)]
     sync_send: mpsc::UnboundedSender<SyncMessage>,
 
     /// A channel to the miner thread.
@@ -28,9 +29,10 @@ impl Processor {
         executor: task_executor::TaskExecutor,
         _network_globals: Arc<NetworkGlobals>,
         network_send: mpsc::UnboundedSender<ServiceMessage>,
+        store: Arc<dyn Store>,
     ) -> Self {
         // spawn services
-        let sync_send = SyncService::spawn(executor.clone(), network_send.clone());
+        let sync_send = SyncService::spawn(executor.clone(), network_send.clone(), store);
         let miner_send = MinerService::spawn(executor, network_send.clone());
 
         Processor {
@@ -38,6 +40,12 @@ impl Processor {
             sync_send,
             miner_send,
         }
+    }
+
+    fn send_to_sync(&mut self, message: SyncMessage) {
+        self.sync_send.send(message).unwrap_or_else(|e| {
+            warn!( error = %e, "Could not send message to the sync service");
+        });
     }
 
     /// Handle a peer disconnect.
@@ -95,12 +103,15 @@ impl Processor {
     /// Handle a `GetChunks` request from the peer.
     pub fn on_get_chunks_request(
         &mut self,
-        _peer_id: PeerId,
-        _request_id: PeerRequestId,
+        peer_id: PeerId,
+        request_id: PeerRequestId,
         request: GetChunksRequest,
     ) {
-        info!("Received GetChunks request: {:?}", request);
-        // TODO(Thegaram): Send response
+        self.send_to_sync(SyncMessage::GetChunksRequest {
+            peer_id,
+            request_id,
+            request,
+        });
     }
 
     /// Handle a `DataByHash` response from the peer.
@@ -117,12 +128,15 @@ impl Processor {
     /// Handle a `Chunks` response from the peer.
     pub fn on_chunks_response(
         &mut self,
-        _peer_id: PeerId,
-        _request_id: RequestId,
-        data: ChunkArrayWithProof,
+        peer_id: PeerId,
+        request_id: RequestId,
+        response: ChunkArrayWithProof,
     ) {
-        info!("Received Chunks response: {:?}", data);
-        // TODO(Thegaram): Handle response
+        self.send_to_sync(SyncMessage::ChunksResponse {
+            peer_id,
+            request_id,
+            response,
+        });
     }
 
     /// Process a gossip message declaring a new block.

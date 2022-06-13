@@ -104,10 +104,25 @@ impl LogStoreChunkRead for BatchChunkStore {
 
 impl SimpleLogStore {
     #[allow(unused)]
-    pub fn open(path: &Path) -> Result<Self> {
+    pub fn rocksdb(path: &Path) -> Result<Self> {
         let mut config = DatabaseConfig::with_columns(COL_NUM);
         config.enable_statistics = true;
         let kvdb = Arc::new(Database::open(&config, path)?);
+
+        Ok(Self {
+            kvdb: kvdb.clone(),
+            chunk_store: Arc::new(BatchChunkStore {
+                kvdb,
+                batch_size: CHUNK_BATCH_SIZE,
+            }),
+            chunk_batch_size: CHUNK_BATCH_SIZE,
+        })
+    }
+
+    #[allow(unused)]
+    pub fn memorydb() -> Result<Self> {
+        let kvdb = Arc::new(kvdb_memorydb::create(COL_NUM));
+
         Ok(Self {
             kvdb: kvdb.clone(),
             chunk_store: Arc::new(BatchChunkStore {
@@ -264,6 +279,6 @@ impl LogStoreRead for SimpleLogStore {
 fn chunk_key(tx_seq: u64, index: u32) -> [u8; CHUNK_KEY_SIZE] {
     let mut key = [0u8; CHUNK_KEY_SIZE];
     key[0..8].copy_from_slice(&tx_seq.to_be_bytes());
-    key[9..12].copy_from_slice(&index.to_be_bytes());
+    key[8..12].copy_from_slice(&index.to_be_bytes());
     key
 }

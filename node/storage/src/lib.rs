@@ -1,3 +1,7 @@
+#[allow(unused_imports)]
+#[macro_use]
+extern crate tracing;
+
 use kvdb::KeyValueDB;
 
 pub mod error;

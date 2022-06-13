@@ -7,6 +7,7 @@ use network::{BehaviourEvent, NetworkGlobals};
 use network::{Context, Libp2pEvent, NetworkConfig};
 use network::{RequestId, ServiceMessage};
 use std::sync::Arc;
+use storage::log_store::Store;
 use task_executor::ShutdownReason;
 use tokio::sync::mpsc;
 
@@ -30,6 +31,7 @@ impl NetworkService {
     pub async fn start(
         config: &NetworkConfig,
         executor: task_executor::TaskExecutor,
+        store: Arc<dyn Store>,
     ) -> error::Result<(Arc<NetworkGlobals>, mpsc::UnboundedSender<ServiceMessage>)> {
         let (network_send, network_recv) = mpsc::unbounded_channel::<ServiceMessage>();
 
@@ -45,6 +47,7 @@ impl NetworkService {
             network_globals.clone(),
             network_send.clone(),
             executor.clone(),
+            store,
         )?;
 
         // create the network service and spawn the task

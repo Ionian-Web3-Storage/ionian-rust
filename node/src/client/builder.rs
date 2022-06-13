@@ -1,9 +1,9 @@
 use super::{Client, RuntimeContext};
-use network::ServiceMessage;
-use network::{NetworkConfig, NetworkGlobals};
+use network::{NetworkConfig, NetworkGlobals, ServiceMessage};
 use rpc::RPCConfig;
 use service::NetworkService;
 use std::sync::Arc;
+use storage::log_store::{SimpleLogStore, Store};
 use tokio::sync::mpsc::UnboundedSender;
 
 /// Builds a `Client` instance.
@@ -14,6 +14,7 @@ use tokio::sync::mpsc::UnboundedSender;
 /// initialized, _before_ the `self.build(..)` method has been called.
 pub struct ClientBuilder {
     runtime_context: Option<RuntimeContext>,
+    store: Option<Arc<dyn Store>>,
     network_globals: Option<Arc<NetworkGlobals>>,
     network_send: Option<UnboundedSender<ServiceMessage>>,
 }
@@ -23,28 +24,45 @@ impl ClientBuilder {
     pub fn new() -> Self {
         Self {
             runtime_context: None,
+            store: None,
             network_globals: None,
             network_send: None,
         }
     }
 
     /// Specifies the runtime context (tokio executor, logger, etc) for client services.
-    pub fn runtime_context(mut self, context: RuntimeContext) -> Self {
+    pub fn with_runtime_context(mut self, context: RuntimeContext) -> Self {
         self.runtime_context = Some(context);
         self
     }
 
+    /// Initializes in-memory storage.
+    pub fn with_memory_store(mut self) -> Result<Self, String> {
+        let store = SimpleLogStore::memorydb()
+            .map_err(|e| format!("Unable to start in-memory store: {:?}", e))?;
+
+        self.store = Some(Arc::new(store));
+        Ok(self)
+    }
+
     /// Starts the networking stack.
-    pub async fn network(mut self, config: &NetworkConfig) -> Result<Self, String> {
+    pub async fn with_network(mut self, config: &NetworkConfig) -> Result<Self, String> {
         let context = self
             .runtime_context
             .as_ref()
             .ok_or("network requires a runtime_context")?
             .clone();
 
-        let (network_globals, network_send) = NetworkService::start(config, context.executor)
-            .await
-            .map_err(|e| format!("Failed to start network: {:?}", e))?;
+        let store = self
+            .store
+            .as_ref()
+            .ok_or("network requires a store")?
+            .clone();
+
+        let (network_globals, network_send) =
+            NetworkService::start(config, context.executor, store)
+                .await
+                .map_err(|e| format!("Failed to start network: {:?}", e))?;
 
         self.network_globals = Some(network_globals);
         self.network_send = Some(network_send);
@@ -52,7 +70,7 @@ impl ClientBuilder {
         Ok(self)
     }
 
-    pub async fn rpc(self, config: RPCConfig) -> Result<Self, String> {
+    pub async fn with_rpc(self, config: RPCConfig) -> Result<Self, String> {
         if !config.enabled {
             return Ok(self);
         }
@@ -60,7 +78,7 @@ impl ClientBuilder {
         let executor = self
             .runtime_context
             .as_ref()
-            .ok_or("build requires a runtime context")?
+            .ok_or("rpc requires a runtime context")?
             .executor
             .clone();
 

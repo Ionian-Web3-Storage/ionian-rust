@@ -4,6 +4,9 @@ use shared_types::{
 
 use crate::error::Result;
 
+mod simple_log_store;
+pub use simple_log_store::SimpleLogStore;
+
 /// The trait to read the transactions already appended to the log.
 ///
 /// Implementation Rationale:
@@ -60,7 +63,8 @@ pub trait LogStoreChunkWrite {
     fn put_chunks(&self, tx_seq: u64, chunks: ChunkArray) -> Result<()>;
 }
 
-pub trait LogChunkStore: LogStoreChunkRead + LogStoreChunkWrite {}
-impl<T: LogStoreChunkRead + LogStoreChunkWrite> LogChunkStore for T {}
+pub trait LogChunkStore: LogStoreChunkRead + LogStoreChunkWrite + Send + Sync + 'static {}
+impl<T: LogStoreChunkRead + LogStoreChunkWrite + Send + Sync + 'static> LogChunkStore for T {}
 
-mod simple_log_store;
+pub trait Store: LogStoreRead + LogStoreChunkWrite + Send + Sync + 'static {}
+impl<T: LogStoreRead + LogStoreChunkWrite + Send + Sync + 'static> Store for T {}

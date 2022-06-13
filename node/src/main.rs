@@ -15,10 +15,11 @@ async fn start_node(context: RuntimeContext, config: IonianConfig) -> Result<Cli
     let rpc_config = config.rpc_config()?;
 
     ClientBuilder::new()
-        .runtime_context(context)
-        .network(&network_config)
+        .with_runtime_context(context)
+        .with_memory_store()?
+        .with_network(&network_config)
         .await?
-        .rpc(rpc_config)
+        .with_rpc(rpc_config)
         .await?
         .build()
 }

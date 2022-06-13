@@ -2134,6 +2134,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "kvdb-memorydb"
+version = "0.11.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ece7e668abd21387aeb6628130a6f4c802787f014fa46bc83221448322250357"
+dependencies = [
+ "kvdb",
+ "parity-util-mem",
+ "parking_lot 0.12.1",
+]
+
+[[package]]
 name = "kvdb-rocksdb"
 version = "0.15.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4390,6 +4401,7 @@ dependencies = [
  "miner",
  "network",
  "shared_types",
+ "storage",
  "sync",
  "task_executor",
  "tokio",
@@ -4628,10 +4640,12 @@ dependencies = [
  "eth2_ssz",
  "ethereum-types 0.13.1",
  "kvdb",
+ "kvdb-memorydb",
  "kvdb-rocksdb",
  "merkle_tree",
  "merkletree",
  "shared_types",
+ "tracing",
 ]
 
 [[package]]
@@ -4693,6 +4707,7 @@ version = "0.1.0"
 dependencies = [
  "network",
  "shared_types",
+ "storage",
  "task_executor",
  "tokio",
  "tracing",

@@ -12,6 +12,7 @@ use network::{MessageId, NetworkGlobals, PeerId, PeerRequestId, PubsubMessage, R
 use network::{RequestId, ServiceMessage};
 use processor::Processor;
 use std::sync::Arc;
+use storage::log_store::Store;
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::UnboundedReceiverStream;
 
@@ -66,13 +67,19 @@ impl Router {
         network_globals: Arc<NetworkGlobals>,
         network_send: mpsc::UnboundedSender<ServiceMessage>,
         executor: task_executor::TaskExecutor,
+        store: Arc<dyn Store>,
     ) -> error::Result<mpsc::UnboundedSender<RouterMessage>> {
         trace!("Service starting");
 
         let (handler_send, handler_recv) = mpsc::unbounded_channel();
 
         // Initialise a message instance, which itself spawns the syncing thread.
-        let processor = Processor::new(executor.clone(), network_globals.clone(), network_send);
+        let processor = Processor::new(
+            executor.clone(),
+            network_globals.clone(),
+            network_send,
+            store,
+        );
 
         // generate the Message handler
         let mut handler = Router {
