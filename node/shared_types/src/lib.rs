@@ -72,6 +72,7 @@ pub struct ChunkWithProof {
 #[derive(Clone, PartialEq, DeriveEncode, DeriveDecode)]
 pub struct ChunkArrayWithProof {
     pub chunks: ChunkArray,
+    // TODO: The top levels of the two proofs can be merged.
     pub start_proof: ChunkProof,
     pub end_proof: ChunkProof,
 }

@@ -4476,7 +4476,6 @@ dependencies = [
  "eth2_ssz_types",
  "ethereum-types 0.12.1",
  "merkletree",
- "network",
  "tiny-keccak",
 ]
 

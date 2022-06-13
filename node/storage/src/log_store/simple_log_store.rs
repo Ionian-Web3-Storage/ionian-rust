@@ -28,6 +28,22 @@ const CHUNK_KEY_SIZE: usize = 8 + 4;
 const CHUNK_BATCH_SIZE: usize = 1024;
 
 type DataMerkleTree = MerkleTree<[u8; 32], Sha3Algorithm, VecStore<[u8; 32]>>;
+type DataProof = Proof<[u8; 32]>;
+
+macro_rules! try_option {
+    ($r: ident) => {
+        match $r {
+            Some(v) => v,
+            None => return Ok(None),
+        }
+    };
+    ($e: expr) => {
+        match $e {
+            Some(v) => v,
+            None => return Ok(None),
+        }
+    };
+}
 
 /// Here we only encode the top tree leaf data because we cannot build `VecStore` from raw bytes.
 /// If we want to save the whole tree, we'll need to save it as files using disk-related store,
@@ -142,6 +158,14 @@ impl SimpleLogStore {
             chunk_array.data.chunks(CHUNK_SIZE),
             chunk_array.data.len() / CHUNK_SIZE,
         )))
+    }
+
+    fn get_subtree_proof(&self, tx_seq: u64, index: u32) -> Result<Option<DataProof>> {
+        let batch_start_index = index / self.chunk_batch_size as u32;
+        let sub_tree = try_option!(self.get_sub_tree(tx_seq, batch_start_index)?);
+        let offset = index as usize % self.chunk_batch_size;
+        let sub_proof = sub_tree.gen_proof(offset)?;
+        Ok(Some(sub_proof))
     }
 }
 
@@ -412,11 +436,47 @@ impl LogStoreRead for SimpleLogStore {
 
     fn get_chunks_with_proof_by_tx_and_index_range(
         &self,
-        _tx_seq: u64,
-        _index_start: u32,
-        _index_end: u32,
+        tx_seq: u64,
+        index_start: u32,
+        index_end: u32,
     ) -> Result<Option<ChunkArrayWithProof>> {
-        todo!()
+        if index_end <= index_start {
+            return Err(Error::InvalidBatchBoundary);
+        }
+        let top_tree = try_option!(self.get_top_tree(tx_seq)?);
+        let left_batch_index = index_start as usize / self.chunk_batch_size;
+        let right_batch_index = (index_end - 1) as usize / self.chunk_batch_size;
+        let (left_proof, right_proof) = if left_batch_index == right_batch_index {
+            let top_proof = top_tree.gen_proof(left_batch_index)?;
+            let sub_tree = try_option!(
+                self.get_sub_tree(tx_seq, (left_batch_index * self.chunk_batch_size) as u32)?
+            );
+            let left_offset = index_start as usize % self.chunk_batch_size;
+            let left_sub_proof = sub_tree.gen_proof(left_offset)?;
+            let right_offset = (index_end - 1) as usize % self.chunk_batch_size;
+            let right_sub_proof = sub_tree.gen_proof(right_offset)?;
+            (
+                chunk_proof(&top_proof, &left_sub_proof)?,
+                chunk_proof(&top_proof, &right_sub_proof)?,
+            )
+        } else {
+            let left_top_proof = top_tree.gen_proof(left_batch_index)?;
+            let right_top_proof = top_tree.gen_proof(right_batch_index)?;
+            let left_sub_proof = try_option!(self.get_subtree_proof(tx_seq, index_start)?);
+            let right_sub_proof = try_option!(self.get_subtree_proof(tx_seq, index_end - 1)?);
+            (
+                chunk_proof(&left_top_proof, &left_sub_proof)?,
+                chunk_proof(&right_top_proof, &right_sub_proof)?,
+            )
+        };
+        // TODO: The chunks may have been loaded from the proof generation process above.
+        let chunks =
+            try_option!(self.get_chunks_by_tx_and_index_range(tx_seq, index_start, index_end)?);
+        Ok(Some(ChunkArrayWithProof {
+            chunks,
+            start_proof: left_proof,
+            end_proof: right_proof,
+        }))
     }
 }
 
@@ -425,4 +485,21 @@ fn chunk_key(tx_seq: u64, index: u32) -> [u8; CHUNK_KEY_SIZE] {
     key[0..8].copy_from_slice(&tx_seq.to_be_bytes());
     key[8..12].copy_from_slice(&index.to_be_bytes());
     key
+}
+
+fn chunk_proof(top_proof: &DataProof, sub_proof: &DataProof) -> Result<ChunkProof> {
+    if top_proof.item() != sub_proof.root() {
+        return Err(Error::Custom(format!(
+            "top tree and sub tree mismatch: top_leaf={:?}, sub_root={:?}",
+            top_proof.item(),
+            sub_proof.root()
+        )));
+    }
+    let mut lemma = sub_proof.lemma().clone();
+    let mut path = sub_proof.path().clone();
+    assert!(lemma.pop().is_some());
+    lemma.extend_from_slice(&top_proof.lemma()[1..]);
+    path.extend_from_slice(top_proof.path());
+    let proof = DataProof::new::<U0, U0>(None, lemma, path)?;
+    Ok(ChunkProof::from_merkle_proof(&proof))
 }
