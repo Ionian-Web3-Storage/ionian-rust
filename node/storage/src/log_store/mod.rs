@@ -6,6 +6,8 @@ use crate::error::Result;
 
 mod simple_log_store;
 pub use simple_log_store::SimpleLogStore;
+#[cfg(test)]
+mod tests;
 
 /// The trait to read the transactions already appended to the log.
 ///

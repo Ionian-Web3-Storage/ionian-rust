@@ -24,6 +24,7 @@ pub type DataRoot = H256;
 // Each chunk is 32 bytes.
 pub const CHUNK_SIZE: usize = 32;
 
+#[derive(Debug, Eq, PartialEq)]
 pub struct Chunk(pub [u8; CHUNK_SIZE]);
 
 #[derive(Clone, PartialEq, DeriveEncode, DeriveDecode)]
@@ -39,29 +40,12 @@ impl ChunkProof {
         }
     }
 }
-#[derive(DeriveDecode, DeriveEncode)]
+#[derive(Clone, Debug, Eq, PartialEq, DeriveDecode, DeriveEncode)]
 pub struct Transaction {
-    #[ssz(skip_serializing, skip_deserializing)]
-    hash: TransactionHash,
+    pub hash: TransactionHash,
     pub size: u64,
     pub data_merkle_root: DataRoot,
     pub seq: u64,
-}
-
-impl Transaction {
-    pub fn compute_hash(&mut self) -> TransactionHash {
-        let ssz_bytes = self.as_ssz_bytes();
-        let mut output = TransactionHash::default();
-        let mut hasher = Keccak::v256();
-        hasher.update(&ssz_bytes);
-        hasher.finalize(output.as_bytes_mut());
-        self.hash = output;
-        output
-    }
-
-    pub fn hash(&self) -> &TransactionHash {
-        &self.hash
-    }
 }
 
 pub struct ChunkWithProof {
@@ -84,7 +68,7 @@ impl std::fmt::Debug for ChunkArrayWithProof {
     }
 }
 
-#[derive(Clone, PartialEq, DeriveEncode, DeriveDecode)]
+#[derive(Clone, Debug, Eq, PartialEq, DeriveEncode, DeriveDecode)]
 pub struct ChunkArray {
     // The length is exactly a multiple of `CHUNK_SIZE`
     pub data: Vec<u8>,

@@ -107,7 +107,7 @@ fn tree_size(leafs: usize) -> usize {
 pub struct SimpleLogStore {
     kvdb: Arc<dyn IonianKeyValueDB>,
     chunk_store: Arc<dyn LogChunkStore>,
-    chunk_batch_size: usize,
+    pub chunk_batch_size: usize,
 }
 
 impl SimpleLogStore {
@@ -126,7 +126,7 @@ impl SimpleLogStore {
         })
     }
 
-    pub fn get_top_tree(&self, tx_seq: u64) -> Result<Option<DataMerkleTree>> {
+    fn get_top_tree(&self, tx_seq: u64) -> Result<Option<DataMerkleTree>> {
         let maybe_tree_bytes = self.kvdb.get(COL_TX_MERKLE, &tx_seq.to_be_bytes())?;
         if maybe_tree_bytes.is_none() {
             return Ok(None);
@@ -136,11 +136,7 @@ impl SimpleLogStore {
         )?))
     }
 
-    pub fn get_sub_tree(
-        &self,
-        tx_seq: u64,
-        batch_start_index: u32,
-    ) -> Result<Option<DataMerkleTree>> {
+    fn get_sub_tree(&self, tx_seq: u64, batch_start_index: u32) -> Result<Option<DataMerkleTree>> {
         if batch_start_index % self.chunk_batch_size as u32 != 0 {
             return Err(Error::InvalidBatchBoundary);
         }
@@ -301,13 +297,9 @@ impl LogStoreChunkWrite for SimpleLogStore {
 
 impl LogStoreWrite for SimpleLogStore {
     fn put_tx(&self, mut tx: Transaction) -> Result<()> {
-        if *tx.hash() == TransactionHash::default() {
-            tx.compute_hash();
-        }
-        let tx_hash = tx.hash();
         let mut db_tx = self.kvdb.transaction();
         db_tx.put(COL_TX, &tx.seq.to_be_bytes(), &tx.as_ssz_bytes());
-        db_tx.put(COL_TX_HASH_INDEX, tx_hash.as_bytes(), &tx.seq.to_be_bytes());
+        db_tx.put(COL_TX_HASH_INDEX, tx.hash.as_bytes(), &tx.seq.to_be_bytes());
         self.kvdb.write(db_tx).map_err(Into::into)
     }
 
@@ -389,7 +381,6 @@ impl LogStoreRead for SimpleLogStore {
             None => Ok(None),
             Some(value) => {
                 let mut tx = Transaction::from_ssz_bytes(&value)?;
-                tx.compute_hash();
                 Ok(Some(tx))
             }
         }
