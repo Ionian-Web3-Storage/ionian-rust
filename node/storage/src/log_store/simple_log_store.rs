@@ -184,7 +184,11 @@ impl LogStoreChunkWrite for BatchChunkStore {
         for index in (chunks.start_index..end_index).step_by(self.batch_size) {
             let key = chunk_key(tx_seq, index);
             let end = cmp::min(index + self.batch_size as u32, end_index) as usize;
-            tx.put(COL_CHUNK, &key, &chunks.data[index as usize..end]);
+            tx.put(
+                COL_CHUNK,
+                &key,
+                &chunks.data[index as usize * CHUNK_SIZE as usize..end as usize * CHUNK_SIZE],
+            );
         }
         self.kvdb.write(tx)?;
         Ok(())
@@ -211,29 +215,36 @@ impl LogStoreChunkRead for BatchChunkStore {
         let mut data =
             Vec::with_capacity(((index_end - index_start) as usize * CHUNK_SIZE) as usize);
         for index in (index_start..index_end).step_by(self.batch_size) {
-            let key = chunk_key(tx_seq, index);
-            let end = cmp::min(index + self.batch_size as u32, index_end) as usize;
+            let batch_start_index = index / self.batch_size as u32 * self.batch_size as u32;
+            let key = chunk_key(tx_seq, batch_start_index);
+            let end_index =
+                cmp::min(batch_start_index + self.batch_size as u32, index_end) as usize;
             let maybe_batch_data = self.kvdb.get(COL_CHUNK, &key)?;
             if maybe_batch_data.is_none() {
                 return Ok(None);
             }
             let batch_data = maybe_batch_data.unwrap();
+            let start_offset = (index as usize % self.batch_size) * CHUNK_SIZE;
+            let end_offset = cmp::min(
+                batch_data.len(),
+                ((end_index - 1) % self.batch_size + 1) * CHUNK_SIZE,
+            );
             // If the loaded data of the last chunk is shorted than `batch_end`, we return the data
             // without error and leave the caller to check if there is any error.
+            // TODO: Decide if this bahavior is what we need.
             if batch_data.len() != self.batch_size * CHUNK_SIZE {
-                //
                 if index / self.batch_size as u32 == (index_end - 1) / self.batch_size as u32
                     && index_end % self.batch_size as u32 != 0
                 {
                     trace!("read partial last batch");
+                    if start_offset >= batch_data.len() {
+                        return Ok(None);
+                    }
                 } else {
                     bail!(Error::Custom("incomplete chunk batch".to_string()));
                 }
             }
-            let batch_end = cmp::min(self.batch_size, end % self.batch_size) * CHUNK_SIZE;
-            data.extend_from_slice(
-                &batch_data[(index as usize % self.batch_size) * CHUNK_SIZE..batch_end],
-            );
+            data.extend_from_slice(&batch_data[start_offset..end_offset]);
         }
         Ok(Some(ChunkArray {
             data,
@@ -297,7 +308,7 @@ impl LogStoreChunkWrite for SimpleLogStore {
 }
 
 impl LogStoreWrite for SimpleLogStore {
-    fn put_tx(&self, mut tx: Transaction) -> Result<()> {
+    fn put_tx(&self, tx: Transaction) -> Result<()> {
         let mut db_tx = self.kvdb.transaction();
         db_tx.put(COL_TX, &tx.seq.to_be_bytes(), &tx.as_ssz_bytes());
         db_tx.put(COL_TX_HASH_INDEX, tx.hash.as_bytes(), &tx.seq.to_be_bytes());
@@ -366,10 +377,10 @@ impl LogStoreRead for SimpleLogStore {
             return Ok(None);
         }
         let value = maybe_value.unwrap();
-        if value.len() != 4 {
+        if value.len() != 8 {
             bail!(Error::ValueDecodingError(DecodeError::InvalidByteLength {
                 len: value.len(),
-                expected: 4,
+                expected: 8,
             }));
         }
         let seq = u64::from_be_bytes(value.try_into().unwrap());
@@ -381,7 +392,7 @@ impl LogStoreRead for SimpleLogStore {
         match maybe_value {
             None => Ok(None),
             Some(value) => {
-                let mut tx = Transaction::from_ssz_bytes(&value).map_err(Error::from)?;
+                let tx = Transaction::from_ssz_bytes(&value).map_err(Error::from)?;
                 Ok(Some(tx))
             }
         }

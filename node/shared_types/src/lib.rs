@@ -6,9 +6,7 @@ use network::{
     rpc::{GoodbyeReason, RPCResponseErrorCode},
     PeerAction, PeerId, PeerRequestId, PubsubMessage, ReportSource, Request, Response,
 };
-use ssz::Encode;
 use ssz_derive::{Decode as DeriveDecode, Encode as DeriveEncode};
-use tiny_keccak::{Hasher, Keccak};
 
 /// Application level requests sent to the network.
 #[derive(Debug, Clone, Copy)]

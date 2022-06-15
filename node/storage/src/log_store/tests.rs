@@ -1,6 +1,6 @@
 use crate::log_store::simple_log_store::SimpleLogStore;
 use crate::log_store::{LogStoreChunkRead, LogStoreChunkWrite, LogStoreRead, LogStoreWrite};
-use ethereum_types::{H256, U256};
+use rand::random;
 use shared_types::{ChunkArray, Transaction, TransactionHash, CHUNK_SIZE};
 use std::ops::Deref;
 use tempdir::TempDir;
@@ -37,8 +37,11 @@ fn create_temp_log_store() -> TempSimpleLogStore {
 #[test]
 fn test_put_get() {
     let store = create_temp_log_store();
-    let data_size = CHUNK_SIZE * store.store.chunk_batch_size + 1;
-    let data = vec![1; data_size];
+    let data_size = CHUNK_SIZE * (store.store.chunk_batch_size + 1);
+    let mut data = vec![0u8; data_size];
+    for i in 0..store.store.chunk_batch_size + 1 {
+        data[i * CHUNK_SIZE] = random();
+    }
     let chunk_array = ChunkArray {
         data,
         start_index: 0,
@@ -62,9 +65,23 @@ fn test_put_get() {
         store.get_chunk_by_tx_and_index(tx.seq, 1).unwrap().unwrap(),
         chunk_array.chunk_at(1).unwrap()
     );
+    let end_chunk_index = (data_size / CHUNK_SIZE) as u32;
     assert_eq!(
         store
-            .get_chunks_by_tx_and_index_range(tx.seq, 0, 2)
+            .get_chunk_by_tx_and_index(tx.seq, end_chunk_index - 1)
+            .unwrap()
+            .unwrap(),
+        chunk_array.chunk_at(end_chunk_index - 1).unwrap()
+    );
+    assert_eq!(
+        store
+            .get_chunk_by_tx_and_index(tx.seq, end_chunk_index)
+            .unwrap(),
+        None
+    );
+    assert_eq!(
+        store
+            .get_chunks_by_tx_and_index_range(tx.seq, 0, end_chunk_index)
             .unwrap()
             .unwrap(),
         chunk_array
