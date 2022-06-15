@@ -1,9 +1,10 @@
+use anyhow;
 use ssz::DecodeError;
 use std::error::Error as ErrorTrait;
 use std::fmt::{Debug, Display, Formatter};
 use std::io::Error as IoError;
 
-pub type Result<T> = std::result::Result<T, Error>;
+pub type Result<T> = anyhow::Result<T>;
 
 #[derive(Debug)]
 pub enum Error {

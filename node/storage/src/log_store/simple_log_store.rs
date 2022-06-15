@@ -3,6 +3,7 @@ use crate::log_store::{
     LogChunkStore, LogStoreChunkRead, LogStoreChunkWrite, LogStoreRead, LogStoreWrite,
 };
 use crate::IonianKeyValueDB;
+use anyhow::bail;
 use kvdb_rocksdb::{Database, DatabaseConfig};
 use merkle_tree::Sha3Algorithm;
 use merkletree::merkle::{next_pow2, MerkleTree};
@@ -60,7 +61,7 @@ fn encode_merkle_tree(merkle_tree: &DataMerkleTree, actual_leafs: usize) -> Vec<
 
 fn decode_merkle_tree(bytes: &[u8]) -> Result<DataMerkleTree> {
     if bytes.len() < 4 {
-        return Err(Error::Custom(format!(
+        bail!(Error::Custom(format!(
             "Merkle tree encoding too short: len={}",
             bytes.len()
         )));
@@ -68,7 +69,7 @@ fn decode_merkle_tree(bytes: &[u8]) -> Result<DataMerkleTree> {
     let actual_leafs = u32::from_be_bytes(bytes[0..4].try_into().unwrap()) as usize;
     let expected_len = 4 + 32 * actual_leafs;
     if bytes.len() != expected_len {
-        return Err(Error::Custom(format!(
+        bail!(Error::Custom(format!(
             "Merkle tree encoding incorrect length: len={} expected={}",
             bytes.len(),
             expected_len
@@ -138,7 +139,7 @@ impl SimpleLogStore {
 
     fn get_sub_tree(&self, tx_seq: u64, batch_start_index: u32) -> Result<Option<DataMerkleTree>> {
         if batch_start_index % self.chunk_batch_size as u32 != 0 {
-            return Err(Error::InvalidBatchBoundary);
+            bail!(Error::InvalidBatchBoundary);
         }
         let batch_end_index = batch_start_index + self.chunk_batch_size as u32;
         let maybe_chunk_array = self.chunk_store.get_chunks_by_tx_and_index_range(
@@ -176,7 +177,7 @@ impl LogStoreChunkWrite for BatchChunkStore {
     /// and so is the batch boundary.
     fn put_chunks(&self, tx_seq: u64, chunks: ChunkArray) -> Result<()> {
         if chunks.start_index % self.batch_size as u32 != 0 || chunks.data.len() % CHUNK_SIZE != 0 {
-            return Err(Error::InvalidBatchBoundary);
+            bail!(Error::InvalidBatchBoundary);
         }
         let mut tx = self.kvdb.transaction();
         let end_index = chunks.start_index + (chunks.data.len() / CHUNK_SIZE) as u32;
@@ -205,7 +206,7 @@ impl LogStoreChunkRead for BatchChunkStore {
         index_end: u32,
     ) -> Result<Option<ChunkArray>> {
         if index_end <= index_start {
-            return Err(Error::InvalidBatchBoundary);
+            bail!(Error::InvalidBatchBoundary);
         }
         let mut data =
             Vec::with_capacity(((index_end - index_start) as usize * CHUNK_SIZE) as usize);
@@ -226,7 +227,7 @@ impl LogStoreChunkRead for BatchChunkStore {
                 {
                     trace!("read partial last batch");
                 } else {
-                    return Err(Error::Custom("incomplete chunk batch".to_string()));
+                    bail!(Error::Custom("incomplete chunk batch".to_string()));
                 }
             }
             let batch_end = cmp::min(self.batch_size, end % self.batch_size) * CHUNK_SIZE;
@@ -306,7 +307,7 @@ impl LogStoreWrite for SimpleLogStore {
     fn finalize_tx(&self, tx_seq: u64) -> Result<()> {
         let maybe_tx = self.get_tx_by_seq_number(tx_seq)?;
         if maybe_tx.is_none() {
-            return Err(Error::Custom(format!(
+            bail!(Error::Custom(format!(
                 "finalize_tx: tx not in db, tx_seq={}",
                 tx_seq
             )));
@@ -326,7 +327,7 @@ impl LogStoreWrite for SimpleLogStore {
                 batch_end_index as u32,
             )?;
             if chunks.is_none() {
-                return Err(Error::Custom(format!(
+                bail!(Error::Custom(format!(
                     "finalize_tx: chunk batch not in db, start_index={}",
                     batch_start_index
                 )));
@@ -342,7 +343,7 @@ impl LogStoreWrite for SimpleLogStore {
         );
         if merkle_tree.root() != tx.data_merkle_root.0 {
             // TODO: Delete all chunks?
-            return Err(Error::Custom(format!(
+            bail!(Error::Custom(format!(
                 "finalize_tx: data merkle root unmatch, found={:?} expected={:?}",
                 DataRoot::from(merkle_tree.root()),
                 tx.data_merkle_root,
@@ -366,7 +367,7 @@ impl LogStoreRead for SimpleLogStore {
         }
         let value = maybe_value.unwrap();
         if value.len() != 4 {
-            return Err(Error::ValueDecodingError(DecodeError::InvalidByteLength {
+            bail!(Error::ValueDecodingError(DecodeError::InvalidByteLength {
                 len: value.len(),
                 expected: 4,
             }));
@@ -380,7 +381,7 @@ impl LogStoreRead for SimpleLogStore {
         match maybe_value {
             None => Ok(None),
             Some(value) => {
-                let mut tx = Transaction::from_ssz_bytes(&value)?;
+                let mut tx = Transaction::from_ssz_bytes(&value).map_err(Error::from)?;
                 Ok(Some(tx))
             }
         }
@@ -407,7 +408,7 @@ impl LogStoreRead for SimpleLogStore {
         let offset = index as usize % self.chunk_batch_size;
         let sub_proof = sub_tree.gen_proof(offset)?;
         if top_proof.item() != sub_proof.root() {
-            return Err(Error::Custom(format!(
+            bail!(Error::Custom(format!(
                 "top tree and sub tree mismatch: top_leaf={:?}, sub_root={:?}",
                 top_proof.item(),
                 sub_proof.root()
@@ -432,7 +433,7 @@ impl LogStoreRead for SimpleLogStore {
         index_end: u32,
     ) -> Result<Option<ChunkArrayWithProof>> {
         if index_end <= index_start {
-            return Err(Error::InvalidBatchBoundary);
+            bail!(Error::InvalidBatchBoundary);
         }
         let top_tree = try_option!(self.get_top_tree(tx_seq)?);
         let left_batch_index = index_start as usize / self.chunk_batch_size;
@@ -480,7 +481,7 @@ fn chunk_key(tx_seq: u64, index: u32) -> [u8; CHUNK_KEY_SIZE] {
 
 fn chunk_proof(top_proof: &DataProof, sub_proof: &DataProof) -> Result<ChunkProof> {
     if top_proof.item() != sub_proof.root() {
-        return Err(Error::Custom(format!(
+        bail!(Error::Custom(format!(
             "top tree and sub tree mismatch: top_leaf={:?}, sub_root={:?}",
             top_proof.item(),
             sub_proof.root()
