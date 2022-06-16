@@ -1,12 +1,13 @@
-#![allow(unused)]
-
+use anyhow::Result;
 use ethereum_types::H256;
+use merkle_tree::Sha3Algorithm;
 use merkletree::proof::Proof;
 use network::{
     rpc::{GoodbyeReason, RPCResponseErrorCode},
     PeerAction, PeerId, PeerRequestId, PubsubMessage, ReportSource, Request, Response,
 };
 use ssz_derive::{Decode as DeriveDecode, Encode as DeriveEncode};
+use typenum::U0;
 
 /// Application level requests sent to the network.
 #[derive(Debug, Clone, Copy)]
@@ -37,7 +38,24 @@ impl ChunkProof {
             path: proof.path().clone(),
         }
     }
+
+    pub fn validate(&self, chunk: &Chunk, root: &DataRoot, position: usize) -> Result<bool> {
+        let mut proof_position = 0;
+        // TODO: Here we assume it's a full power of 2 Merkle tree.
+        for (i, branch_index) in self.path.iter().enumerate() {
+            proof_position += branch_index * (1 << i);
+        }
+        if proof_position != position {
+            return Ok(false);
+        }
+        let proof = Proof::<[u8; 32]>::new::<U0, U0>(None, self.lemma.clone(), self.path.clone())?;
+        if proof.root() != root.0 {
+            return Ok(false);
+        }
+        proof.validate_with_data::<Sha3Algorithm>(&chunk.0)
+    }
 }
+
 #[derive(Clone, Debug, Eq, PartialEq, DeriveDecode, DeriveEncode)]
 pub struct Transaction {
     pub hash: TransactionHash,
@@ -49,6 +67,12 @@ pub struct Transaction {
 pub struct ChunkWithProof {
     pub chunk: Chunk,
     pub proof: ChunkProof,
+}
+
+impl ChunkWithProof {
+    pub fn validate(&self, root: &DataRoot, position: usize) -> Result<bool> {
+        self.proof.validate(&self.chunk, root, position)
+    }
 }
 
 #[derive(Clone, PartialEq, DeriveEncode, DeriveDecode)]

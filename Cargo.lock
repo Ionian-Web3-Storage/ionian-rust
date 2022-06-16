@@ -4474,12 +4474,15 @@ dependencies = [
 name = "shared_types"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "eth2_ssz",
  "eth2_ssz_derive",
  "eth2_ssz_types",
  "ethereum-types 0.12.1",
+ "merkle_tree",
  "merkletree",
  "tiny-keccak",
+ "typenum",
 ]
 
 [[package]]
