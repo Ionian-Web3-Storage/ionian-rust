@@ -1,7 +1,7 @@
 use crate::SyncNetworkContext;
 use network::{
-    rpc::GetChunksRequest, rpc::RPCResponseErrorCode, PeerId, PeerRequestId, RequestId,
-    ServiceMessage,
+    rpc::GetChunksRequest, rpc::RPCResponseErrorCode, NetworkMessage, PeerId, PeerRequestId,
+    RequestId,
 };
 use shared_types::{ChunkArrayWithProof, ChunkProof};
 use std::sync::Arc;
@@ -37,7 +37,7 @@ pub struct SyncService {
 impl SyncService {
     pub fn spawn(
         executor: task_executor::TaskExecutor,
-        network_send: mpsc::UnboundedSender<ServiceMessage>,
+        network_send: mpsc::UnboundedSender<NetworkMessage>,
         store: Arc<dyn Store>,
     ) -> mpsc::UnboundedSender<SyncMessage> {
         let (sync_send, sync_recv) = mpsc::unbounded_channel::<SyncMessage>();
@@ -91,7 +91,7 @@ impl SyncService {
 
         // TODO(thegaram): can we do this validation in the network layer?
         if request.index_start >= request.index_end {
-            let _ = self.ctx.send(ServiceMessage::SendErrorResponse {
+            let _ = self.ctx.send(NetworkMessage::SendErrorResponse {
                 peer_id,
                 id: request_id,
                 error: RPCResponseErrorCode::InvalidRequest,
@@ -118,7 +118,7 @@ impl SyncService {
 
         match result {
             Ok(Some(chunks)) => {
-                let _ = self.ctx.send(ServiceMessage::SendResponse {
+                let _ = self.ctx.send(NetworkMessage::SendResponse {
                     peer_id,
                     id: request_id,
                     response: network::Response::Chunks(chunks),
@@ -127,7 +127,7 @@ impl SyncService {
             Ok(None) => {
                 // FIXME(thegaram): will this happen if the index is out-of-range,
                 // and/or if the data is only partially available on this node?
-                let _ = self.ctx.send(ServiceMessage::SendErrorResponse {
+                let _ = self.ctx.send(NetworkMessage::SendErrorResponse {
                     peer_id,
                     id: request_id,
                     error: RPCResponseErrorCode::InvalidRequest,
@@ -135,7 +135,7 @@ impl SyncService {
                 });
             }
             Err(e) => {
-                let _ = self.ctx.send(ServiceMessage::SendErrorResponse {
+                let _ = self.ctx.send(NetworkMessage::SendErrorResponse {
                     peer_id,
                     id: request_id,
                     error: RPCResponseErrorCode::ServerError,

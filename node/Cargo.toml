@@ -9,11 +9,13 @@ error-chain = "0.12.4"
 exit-future = "0.2.0"
 futures = "0.3.21"
 ionian_version = { path = "../common/ionian_version" }
+miner = { path = "./miner" }
 network = { path = "./network" }
+router = { path = "./router" }
 rpc = { path = "./rpc" }
-service = { path = "./service" }
 shared_types = { path = "./shared_types" }
 storage = { path = "./storage" }
+sync = { path = "./sync" }
 task_executor = { path = "../common/task_executor" }
 tokio = { version = "1.17.0", features = ["full"] }
 tokio-stream = { version = "0.1.8", features = ["sync"] }

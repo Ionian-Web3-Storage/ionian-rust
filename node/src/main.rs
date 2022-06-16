@@ -19,6 +19,9 @@ async fn start_node(context: RuntimeContext, config: IonianConfig) -> Result<Cli
         .with_memory_store()?
         .with_network(&network_config)
         .await?
+        .with_sync()?
+        .with_miner()?
+        .with_router()?
         .with_rpc(rpc_config)
         .await?
         .build()
