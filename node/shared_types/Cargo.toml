@@ -5,7 +5,6 @@ edition = "2021"
 
 [dependencies]
 merkle_tree = { path = "../../common/merkle_tree"}
-network = { path = "../network" }
 
 anyhow = { version = "1.0.57", features = ["backtrace"] }
 ethereum-types = "0.12"

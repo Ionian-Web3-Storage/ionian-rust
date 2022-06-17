@@ -2,10 +2,6 @@ use anyhow::{anyhow, bail, Result};
 use ethereum_types::H256;
 use merkle_tree::Sha3Algorithm;
 use merkletree::proof::Proof;
-use network::{
-    rpc::{GoodbyeReason, RPCResponseErrorCode},
-    PeerAction, PeerId, PeerRequestId, PubsubMessage, ReportSource, Request, Response,
-};
 use ssz_derive::{Decode as DeriveDecode, Encode as DeriveEncode};
 use typenum::U0;
 
