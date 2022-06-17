@@ -28,6 +28,13 @@ pub struct ChunkProof {
     pub path: Vec<usize>,
 }
 impl ChunkProof {
+    pub fn new_empty() -> Self {
+        Self {
+            lemma: Vec::new(),
+            path: Vec::new(),
+        }
+    }
+
     pub fn from_merkle_proof(proof: &Proof<[u8; 32]>) -> Self {
         ChunkProof {
             lemma: proof.lemma().clone(),

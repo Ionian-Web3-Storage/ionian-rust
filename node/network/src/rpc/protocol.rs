@@ -46,8 +46,8 @@ lazy_static! {
             data: vec![],
             start_index: 0,
         },
-        start_proof: ChunkProof {},
-        end_proof: ChunkProof {},
+        start_proof: ChunkProof::new_empty(),
+        end_proof: ChunkProof::new_empty(),
     }
     .as_ssz_bytes()
     .len();
@@ -55,10 +55,9 @@ lazy_static! {
         chunks: ChunkArray {
             data: vec![0u8; MAX_CHUNKS_LENGTH as usize],
             start_index: 0,
-            end_index: 0,
         },
-        start_proof: ChunkProof {},
-        end_proof: ChunkProof {},
+        start_proof: ChunkProof::new_empty(),
+        end_proof: ChunkProof::new_empty(),
     }
     .as_ssz_bytes()
     .len();
