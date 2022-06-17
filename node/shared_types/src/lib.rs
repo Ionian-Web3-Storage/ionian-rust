@@ -92,14 +92,20 @@ pub struct ChunkArrayWithProof {
 impl ChunkArrayWithProof {
     pub fn validate(&self, root: &DataRoot) -> Result<bool> {
         // FIXME: Validate `chunks.data`.
-        let start_chunk = self.chunks.first_chunk().ok_or(anyhow!("no start chunk"))?;
+        let start_chunk = self
+            .chunks
+            .first_chunk()
+            .ok_or_else(|| anyhow!("no start chunk"))?;
         if !self
             .start_proof
             .validate(&start_chunk, root, self.chunks.start_index as usize)?
         {
             return Ok(false);
         }
-        let end_chunk = self.chunks.last_chunk().ok_or(anyhow!("no last chunk"))?;
+        let end_chunk = self
+            .chunks
+            .last_chunk()
+            .ok_or_else(|| anyhow!("no last chunk"))?;
         self.end_proof.validate(
             &end_chunk,
             root,

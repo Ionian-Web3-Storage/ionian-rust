@@ -82,7 +82,7 @@ fn decode_merkle_tree(bytes: &[u8]) -> Result<DataMerkleTree> {
 
 /// This should be called with all input checked.
 /// FIXME: `merkletree` requires data to be exactly power of 2, so just fill empty data so far.
-pub fn merkle_tree<'a>(
+pub fn merkle_tree(
     leaf_data: &[u8],
     element_size: usize,
     depth: Option<usize>,
