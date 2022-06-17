@@ -237,9 +237,7 @@ impl LogStoreChunkRead for BatchChunkStore {
             // without error and leave the caller to check if there is any error.
             // TODO: Decide if this bahavior is what we need.
             if batch_data.len() != self.batch_size * CHUNK_SIZE {
-                if index / self.batch_size as u32 == (index_end - 1) / self.batch_size as u32
-                    && index_end % self.batch_size as u32 != 0
-                {
+                if index / self.batch_size as u32 == (index_end - 1) / self.batch_size as u32 {
                     trace!("read partial last batch");
                     if start_offset >= batch_data.len() {
                         return Ok(None);

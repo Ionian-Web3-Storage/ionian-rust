@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{bail, Result};
 use ethereum_types::H256;
 use merkle_tree::Sha3Algorithm;
 use merkletree::proof::Proof;
@@ -52,7 +52,10 @@ impl ChunkProof {
         if proof.root() != root.0 {
             return Ok(false);
         }
-        proof.validate_with_data::<Sha3Algorithm>(&chunk.0)
+        if chunk.0 != proof.item() {
+            bail!("leaf unmatch");
+        }
+        proof.validate::<Sha3Algorithm>()
     }
 }
 
