@@ -94,4 +94,18 @@ fn test_put_get() {
         );
         assert!(chunk_with_proof.validate(&tx.data_merkle_root, i).unwrap());
     }
+    for i in (0..chunk_count).step_by(store.chunk_batch_size) {
+        let end = std::cmp::min(i + store.chunk_batch_size, chunk_count);
+        let chunk_array_with_proof = store
+            .get_chunks_with_proof_by_tx_and_index_range(tx.seq, i as u32, end as u32)
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            chunk_array_with_proof.chunks,
+            chunk_array.sub_array(i as u32, end as u32).unwrap()
+        );
+        assert!(chunk_array_with_proof
+            .validate(&tx.data_merkle_root)
+            .unwrap());
+    }
 }

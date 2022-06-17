@@ -162,8 +162,8 @@ impl SimpleLogStore {
     }
 
     fn get_subtree_proof(&self, tx_seq: u64, index: u32) -> Result<Option<DataProof>> {
-        let batch_start_index = index / self.chunk_batch_size as u32;
-        let sub_tree = try_option!(self.get_sub_tree(tx_seq, batch_start_index)?);
+        let batch_start_index = index as usize / self.chunk_batch_size * self.chunk_batch_size;
+        let sub_tree = try_option!(self.get_sub_tree(tx_seq, batch_start_index as u32)?);
         let offset = index as usize % self.chunk_batch_size;
         let sub_proof = sub_tree.gen_proof(offset)?;
         Ok(Some(sub_proof))
@@ -185,9 +185,12 @@ impl LogStoreChunkWrite for BatchChunkStore {
         }
         let mut tx = self.kvdb.transaction();
         let end_index = chunks.start_index + (chunks.data.len() / CHUNK_SIZE) as u32;
-        for index in (chunks.start_index..end_index).step_by(self.batch_size) {
-            let key = chunk_key(tx_seq, index);
-            let end = cmp::min(index + self.batch_size as u32, end_index) as usize;
+        for (index, end) in batch_iter(
+            chunks.start_index as usize,
+            end_index as usize,
+            self.batch_size,
+        ) {
+            let key = chunk_key(tx_seq, index as u32);
             tx.put(
                 COL_CHUNK,
                 &key,
@@ -218,17 +221,17 @@ impl LogStoreChunkRead for BatchChunkStore {
         }
         let mut data =
             Vec::with_capacity(((index_end - index_start) as usize * CHUNK_SIZE) as usize);
-        for index in (index_start..index_end).step_by(self.batch_size) {
-            let batch_start_index = index / self.batch_size as u32 * self.batch_size as u32;
-            let key = chunk_key(tx_seq, batch_start_index);
-            let end_index =
-                cmp::min(batch_start_index + self.batch_size as u32, index_end) as usize;
+        for (index, end_index) in
+            batch_iter(index_start as usize, index_end as usize, self.batch_size)
+        {
+            let batch_start_index = index / self.batch_size * self.batch_size;
+            let key = chunk_key(tx_seq, batch_start_index as u32);
             let maybe_batch_data = self.kvdb.get(COL_CHUNK, &key)?;
             if maybe_batch_data.is_none() {
                 return Ok(None);
             }
             let batch_data = maybe_batch_data.unwrap();
-            let start_offset = (index as usize % self.batch_size) * CHUNK_SIZE;
+            let start_offset = (index % self.batch_size) * CHUNK_SIZE;
             let end_offset = cmp::min(
                 batch_data.len(),
                 ((end_index - 1) % self.batch_size + 1) * CHUNK_SIZE,
@@ -237,7 +240,7 @@ impl LogStoreChunkRead for BatchChunkStore {
             // without error and leave the caller to check if there is any error.
             // TODO: Decide if this bahavior is what we need.
             if batch_data.len() != self.batch_size * CHUNK_SIZE {
-                if index / self.batch_size as u32 == (index_end - 1) / self.batch_size as u32 {
+                if index / self.batch_size == (index_end as usize - 1) / self.batch_size {
                     trace!("read partial last batch");
                     if start_offset >= batch_data.len() {
                         return Ok(None);
@@ -332,9 +335,9 @@ impl LogStoreWrite for SimpleLogStore {
         }
         let mut chunk_batch_roots =
             Vec::with_capacity((chunk_index_end / self.chunk_batch_size + 1) * 32);
-        for batch_start_index in (0..chunk_index_end).step_by(self.chunk_batch_size) {
-            let batch_end_index =
-                cmp::min(batch_start_index + self.chunk_batch_size, chunk_index_end);
+        for (batch_start_index, batch_end_index) in
+            batch_iter(0, chunk_index_end, self.chunk_batch_size)
+        {
             let maybe_chunks = self.chunk_store.get_chunks_by_tx_and_index_range(
                 tx_seq,
                 batch_start_index as u32,
@@ -512,4 +515,15 @@ fn chunk_proof(top_proof: &DataProof, sub_proof: &DataProof) -> Result<ChunkProo
     path.extend_from_slice(top_proof.path());
     let proof = DataProof::new::<U0, U0>(None, lemma, path)?;
     Ok(ChunkProof::from_merkle_proof(&proof))
+}
+
+/// Return the batch boundaries `(batch_start_index, batch_end_index)` given the index range.
+fn batch_iter(start: usize, end: usize, batch_size: usize) -> Vec<(usize, usize)> {
+    let mut list = Vec::new();
+    for i in (start / batch_size * batch_size..end).step_by(batch_size) {
+        let batch_start = cmp::max(start, i);
+        let batch_end = cmp::min(end, i + batch_size);
+        list.push((batch_start, batch_end));
+    }
+    list
 }

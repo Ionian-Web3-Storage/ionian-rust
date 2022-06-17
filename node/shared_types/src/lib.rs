@@ -1,4 +1,4 @@
-use anyhow::{bail, Result};
+use anyhow::{anyhow, bail, Result};
 use ethereum_types::H256;
 use merkle_tree::Sha3Algorithm;
 use merkletree::proof::Proof;
@@ -86,6 +86,25 @@ pub struct ChunkArrayWithProof {
     pub end_proof: ChunkProof,
 }
 
+impl ChunkArrayWithProof {
+    pub fn validate(&self, root: &DataRoot) -> Result<bool> {
+        // FIXME: Validate `chunks.data`.
+        let start_chunk = self.chunks.first_chunk().ok_or(anyhow!("no start chunk"))?;
+        if !self
+            .start_proof
+            .validate(&start_chunk, root, self.chunks.start_index as usize)?
+        {
+            return Ok(false);
+        }
+        let end_chunk = self.chunks.last_chunk().ok_or(anyhow!("no last chunk"))?;
+        self.end_proof.validate(
+            &end_chunk,
+            root,
+            self.chunks.start_index as usize + self.chunks.data.len() / CHUNK_SIZE - 1,
+        )
+    }
+}
+
 impl std::fmt::Debug for ChunkArrayWithProof {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         // TODO(thegaram): replace this with something more meaningful
@@ -101,6 +120,16 @@ pub struct ChunkArray {
 }
 
 impl ChunkArray {
+    pub fn first_chunk(&self) -> Option<Chunk> {
+        self.chunk_at(self.start_index)
+    }
+
+    pub fn last_chunk(&self) -> Option<Chunk> {
+        let last_index =
+            (self.start_index as usize + self.data.len() / CHUNK_SIZE).checked_sub(1)?;
+        self.chunk_at(last_index as u32)
+    }
+
     pub fn chunk_at(&self, index: u32) -> Option<Chunk> {
         if index >= (self.data.len() / CHUNK_SIZE) as u32 + self.start_index
             || index < self.start_index
@@ -113,5 +142,22 @@ impl ChunkArray {
                 .try_into()
                 .expect("length match"),
         ))
+    }
+
+    pub fn sub_array(&self, start: u32, end: u32) -> Option<ChunkArray> {
+        if start >= (self.data.len() / CHUNK_SIZE) as u32 + self.start_index
+            || start < self.start_index
+            || end > (self.data.len() / CHUNK_SIZE) as u32 + self.start_index
+            || end <= self.start_index
+            || end <= start
+        {
+            return None;
+        }
+        let start_offset = (start - self.start_index) as usize * CHUNK_SIZE;
+        let end_offset = (end - self.start_index) as usize * CHUNK_SIZE;
+        Some(ChunkArray {
+            data: self.data[start_offset..end_offset].to_vec(),
+            start_index: start,
+        })
     }
 }
