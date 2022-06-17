@@ -135,13 +135,8 @@ impl SimpleLogStore {
     }
 
     fn get_top_tree(&self, tx_seq: u64) -> Result<Option<DataMerkleTree>> {
-        let maybe_tree_bytes = self.kvdb.get(COL_TX_MERKLE, &tx_seq.to_be_bytes())?;
-        if maybe_tree_bytes.is_none() {
-            return Ok(None);
-        }
-        Ok(Some(decode_merkle_tree(
-            maybe_tree_bytes.unwrap().as_slice(),
-        )?))
+        let tree_bytes = try_option!(self.kvdb.get(COL_TX_MERKLE, &tx_seq.to_be_bytes())?);
+        Ok(Some(decode_merkle_tree(tree_bytes.as_slice())?))
     }
 
     fn get_sub_tree(
@@ -153,15 +148,11 @@ impl SimpleLogStore {
             bail!(Error::InvalidBatchBoundary);
         }
         let batch_end_index = batch_start_index + self.chunk_batch_size;
-        let maybe_chunk_array = self.chunk_store.get_chunks_by_tx_and_index_range(
+        let chunk_array = try_option!(self.chunk_store.get_chunks_by_tx_and_index_range(
             tx_seq,
             batch_start_index,
             batch_end_index,
-        )?;
-        let chunk_array = match maybe_chunk_array {
-            None => return Ok(None),
-            Some(a) => a,
-        };
+        )?);
         Ok(Some(merkle_tree(&chunk_array.data, CHUNK_SIZE, Some(10))?))
     }
 
@@ -224,11 +215,7 @@ impl LogStoreChunkRead for BatchChunkStore {
         for (index, end_index) in batch_iter(index_start, index_end, self.batch_size) {
             let batch_start_index = index / self.batch_size * self.batch_size;
             let key = chunk_key(tx_seq, batch_start_index);
-            let maybe_batch_data = self.kvdb.get(COL_CHUNK, &key)?;
-            if maybe_batch_data.is_none() {
-                return Ok(None);
-            }
-            let batch_data = maybe_batch_data.unwrap();
+            let batch_data = try_option!(self.kvdb.get(COL_CHUNK, &key)?);
             let start_offset = (index % self.batch_size) * CHUNK_SIZE;
             let end_offset = cmp::min(
                 batch_data.len(),
@@ -377,11 +364,7 @@ impl LogStoreWrite for SimpleLogStore {
 
 impl LogStoreRead for SimpleLogStore {
     fn get_tx_by_hash(&self, hash: &TransactionHash) -> Result<Option<Transaction>> {
-        let maybe_value = self.kvdb.get(COL_TX_HASH_INDEX, hash.as_bytes())?;
-        if maybe_value.is_none() {
-            return Ok(None);
-        }
-        let value = maybe_value.unwrap();
+        let value = try_option!(self.kvdb.get(COL_TX_HASH_INDEX, hash.as_bytes())?);
         if value.len() != 8 {
             bail!(Error::ValueDecodingError(DecodeError::InvalidByteLength {
                 len: value.len(),
@@ -393,14 +376,9 @@ impl LogStoreRead for SimpleLogStore {
     }
 
     fn get_tx_by_seq_number(&self, seq: u64) -> Result<Option<Transaction>> {
-        let maybe_value = self.kvdb.get(COL_TX, &seq.to_be_bytes())?;
-        match maybe_value {
-            None => Ok(None),
-            Some(value) => {
-                let tx = Transaction::from_ssz_bytes(&value).map_err(Error::from)?;
-                Ok(Some(tx))
-            }
-        }
+        let value = try_option!(self.kvdb.get(COL_TX, &seq.to_be_bytes())?);
+        let tx = Transaction::from_ssz_bytes(&value).map_err(Error::from)?;
+        Ok(Some(tx))
     }
 
     fn get_chunk_with_proof_by_tx_and_index(
@@ -408,18 +386,10 @@ impl LogStoreRead for SimpleLogStore {
         tx_seq: u64,
         index: usize,
     ) -> Result<Option<ChunkWithProof>> {
-        let maybe_top_tree = self.get_top_tree(tx_seq)?;
-        let top_tree = match maybe_top_tree {
-            None => return Ok(None),
-            Some(t) => t,
-        };
+        let top_tree = try_option!(self.get_top_tree(tx_seq)?);
         let batch_index = index / self.chunk_batch_size;
         let top_proof = top_tree.gen_proof(batch_index)?;
-        let maybe_subtree = self.get_sub_tree(tx_seq, batch_index * self.chunk_batch_size)?;
-        let sub_tree = match maybe_subtree {
-            None => return Ok(None),
-            Some(t) => t,
-        };
+        let sub_tree = try_option!(self.get_sub_tree(tx_seq, batch_index * self.chunk_batch_size)?);
         let offset = index % self.chunk_batch_size;
         let sub_proof = sub_tree.gen_proof(offset)?;
         if top_proof.item() != sub_proof.root() {
