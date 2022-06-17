@@ -117,22 +117,22 @@ pub struct ChunkArray {
 
 impl ChunkArray {
     pub fn first_chunk(&self) -> Option<Chunk> {
-        self.chunk_at(self.start_index)
+        self.chunk_at(self.start_index as usize)
     }
 
     pub fn last_chunk(&self) -> Option<Chunk> {
         let last_index =
             (self.start_index as usize + self.data.len() / CHUNK_SIZE).checked_sub(1)?;
-        self.chunk_at(last_index as u32)
+        self.chunk_at(last_index)
     }
 
-    pub fn chunk_at(&self, index: u32) -> Option<Chunk> {
-        if index >= (self.data.len() / CHUNK_SIZE) as u32 + self.start_index
-            || index < self.start_index
+    pub fn chunk_at(&self, index: usize) -> Option<Chunk> {
+        if index >= self.data.len() / CHUNK_SIZE + self.start_index as usize
+            || index < self.start_index as usize
         {
             return None;
         }
-        let offset = (index - self.start_index) as usize * CHUNK_SIZE;
+        let offset = (index - self.start_index as usize) * CHUNK_SIZE;
         Some(Chunk(
             self.data[offset..offset + CHUNK_SIZE]
                 .try_into()
@@ -140,20 +140,20 @@ impl ChunkArray {
         ))
     }
 
-    pub fn sub_array(&self, start: u32, end: u32) -> Option<ChunkArray> {
-        if start >= (self.data.len() / CHUNK_SIZE) as u32 + self.start_index
-            || start < self.start_index
-            || end > (self.data.len() / CHUNK_SIZE) as u32 + self.start_index
-            || end <= self.start_index
+    pub fn sub_array(&self, start: usize, end: usize) -> Option<ChunkArray> {
+        if start >= self.data.len() / CHUNK_SIZE + self.start_index as usize
+            || start < self.start_index as usize
+            || end > self.data.len() / CHUNK_SIZE + self.start_index as usize
+            || end <= self.start_index as usize
             || end <= start
         {
             return None;
         }
-        let start_offset = (start - self.start_index) as usize * CHUNK_SIZE;
-        let end_offset = (end - self.start_index) as usize * CHUNK_SIZE;
+        let start_offset = (start - self.start_index as usize) * CHUNK_SIZE;
+        let end_offset = (end - self.start_index as usize) * CHUNK_SIZE;
         Some(ChunkArray {
             data: self.data[start_offset..end_offset].to_vec(),
-            start_index: start,
+            start_index: start as u32,
         })
     }
 }

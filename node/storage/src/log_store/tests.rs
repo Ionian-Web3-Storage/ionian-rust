@@ -62,47 +62,41 @@ fn test_put_get() {
     assert_eq!(store.get_tx_by_hash(&tx_hash).unwrap().unwrap(), tx);
     for i in 0..chunk_count {
         assert_eq!(
-            store
-                .get_chunk_by_tx_and_index(tx.seq, i as u32)
-                .unwrap()
-                .unwrap(),
-            chunk_array.chunk_at(i as u32).unwrap()
+            store.get_chunk_by_tx_and_index(tx.seq, i).unwrap().unwrap(),
+            chunk_array.chunk_at(i).unwrap()
         );
     }
     assert_eq!(
         store
-            .get_chunk_by_tx_and_index(tx.seq, chunk_count as u32)
+            .get_chunk_by_tx_and_index(tx.seq, chunk_count)
             .unwrap(),
         None
     );
 
     assert_eq!(
         store
-            .get_chunks_by_tx_and_index_range(tx.seq, 0, chunk_count as u32)
+            .get_chunks_by_tx_and_index_range(tx.seq, 0, chunk_count)
             .unwrap()
             .unwrap(),
         chunk_array
     );
     for i in 0..chunk_count {
         let chunk_with_proof = store
-            .get_chunk_with_proof_by_tx_and_index(tx.seq, i as u32)
+            .get_chunk_with_proof_by_tx_and_index(tx.seq, i)
             .unwrap()
             .unwrap();
-        assert_eq!(
-            chunk_with_proof.chunk,
-            chunk_array.chunk_at(i as u32).unwrap()
-        );
+        assert_eq!(chunk_with_proof.chunk, chunk_array.chunk_at(i).unwrap());
         assert!(chunk_with_proof.validate(&tx.data_merkle_root, i).unwrap());
     }
     for i in (0..chunk_count).step_by(store.chunk_batch_size) {
         let end = std::cmp::min(i + store.chunk_batch_size, chunk_count);
         let chunk_array_with_proof = store
-            .get_chunks_with_proof_by_tx_and_index_range(tx.seq, i as u32, end as u32)
+            .get_chunks_with_proof_by_tx_and_index_range(tx.seq, i, end)
             .unwrap()
             .unwrap();
         assert_eq!(
             chunk_array_with_proof.chunks,
-            chunk_array.sub_array(i as u32, end as u32).unwrap()
+            chunk_array.sub_array(i, end).unwrap()
         );
         assert!(chunk_array_with_proof
             .validate(&tx.data_merkle_root)

@@ -45,7 +45,6 @@ lazy_static! {
         chunks: ChunkArray {
             data: vec![],
             start_index: 0,
-            end_index: 0,
         },
         start_proof: ChunkProof {},
         end_proof: ChunkProof {},
