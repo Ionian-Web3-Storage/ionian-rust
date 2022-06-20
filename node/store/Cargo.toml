@@ -5,4 +5,4 @@ edition = "2021"
 
 [dependencies]
 error-chain = "0.12.4"
-tracing = "0.1.34"
+tracing = "0.1.35"

@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-clap = { version = "3.1.12", features = ["cargo"] }
+clap = { version = "3.2.5", features = ["cargo"] }
 error-chain = "0.12.4"
 exit-future = "0.2.0"
 futures = "0.3.21"
@@ -17,13 +17,13 @@ shared_types = { path = "./shared_types" }
 storage = { path = "./storage" }
 sync = { path = "./sync" }
 task_executor = { path = "../common/task_executor" }
-tokio = { version = "1.17.0", features = ["full"] }
-tokio-stream = { version = "0.1.8", features = ["sync"] }
+tokio = { version = "1.19.2", features = ["full"] }
+tokio-stream = { version = "0.1.9", features = ["sync"] }
 toml = "0.5.9"
-tracing = "0.1.34"
+tracing = "0.1.35"
 tracing-subscriber = { version = "0.3.11", features = ["env-filter"] }
 
 [dependencies.libp2p]
-version = "0.44.0"
+version = "0.45.1"
 default-features = true
 features = ["websocket", "identify", "mplex", "yamux", "noise", "gossipsub", "dns-tokio", "tcp-tokio", "plaintext", "secp256k1"]
