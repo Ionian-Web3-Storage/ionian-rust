@@ -1,7 +1,7 @@
-use crate::log_store::simple_log_store::{merkle_tree, SimpleLogStore};
+use crate::log_store::simple_log_store::{sub_merkle_tree, SimpleLogStore};
 use crate::log_store::{LogStoreChunkRead, LogStoreChunkWrite, LogStoreRead, LogStoreWrite};
 use rand::random;
-use shared_types::{ChunkArray, Transaction, TransactionHash, CHUNK_SIZE};
+use shared_types::{ChunkArray, ChunkProof, Transaction, TransactionHash, CHUNK_SIZE};
 use std::ops::Deref;
 use tempdir::TempDir;
 
@@ -37,13 +37,13 @@ fn create_temp_log_store() -> TempSimpleLogStore {
 #[test]
 fn test_put_get() {
     let store = create_temp_log_store();
-    let chunk_count = store.store.chunk_batch_size + 1;
+    let chunk_count = store.store.chunk_batch_size + 0;
     let data_size = CHUNK_SIZE * chunk_count;
     let mut data = vec![0u8; data_size];
     for i in 0..chunk_count {
         data[i * CHUNK_SIZE] = random();
     }
-    let merkle = merkle_tree(&data, CHUNK_SIZE, None).unwrap();
+    let merkle = sub_merkle_tree(&data).unwrap();
     let chunk_array = ChunkArray {
         data,
         start_index: 0,
@@ -86,6 +86,11 @@ fn test_put_get() {
             .unwrap()
             .unwrap();
         assert_eq!(chunk_with_proof.chunk, chunk_array.chunk_at(i).unwrap());
+        assert_eq!(
+            chunk_with_proof.proof,
+            ChunkProof::from_merkle_proof(&merkle.gen_proof(i))
+        );
+        // println!("{:?}", chunk_with_proof.proof);
         assert!(chunk_with_proof.validate(&tx.data_merkle_root, i).unwrap());
     }
     for i in (0..chunk_count).step_by(store.chunk_batch_size) {

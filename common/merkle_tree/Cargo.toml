@@ -6,5 +6,5 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-merkletree = "0.21.0"
+merkle_light = { path = "../../../merkle_light/merkle" }
 rust-crypto = "0.2.36"

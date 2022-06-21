@@ -10,8 +10,9 @@ ethereum-types = "0.13.1"
 kvdb = "0.11.0"
 kvdb-memorydb = "0.11.0"
 kvdb-rocksdb = "0.15.2"
+#merkle_light = {git = "https://github.com/sitano/merkle_light.git", rev = "fe31d4e" }
+merkle_light = { path = "../../../merkle_light/merkle" }
 merkle_tree = { path = "../../common/merkle_tree"}
-merkletree = "0.21.0"
 shared_types = { path = "../shared_types" }
 tracing = "0.1.34"
 typenum = "1.15.0"
