@@ -2,6 +2,7 @@
 extern crate tracing;
 
 mod context;
+mod controllers;
 mod service;
 
 pub(crate) use context::SyncNetworkContext;

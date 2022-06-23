@@ -68,7 +68,7 @@ impl std::fmt::Debug for ChunkArrayWithProof {
     }
 }
 
-#[derive(Clone, PartialEq, DeriveEncode, DeriveDecode)]
+#[derive(Clone, Debug, PartialEq, DeriveEncode, DeriveDecode)]
 pub struct ChunkArray {
     // The length is exactly `(end_index - start_index) * CHUNK_SIZE`
     pub data: Vec<u8>,

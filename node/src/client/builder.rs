@@ -111,8 +111,9 @@ impl ClientBuilder {
         let executor = require!("sync", self, runtime_context).clone().executor;
         let store = require!("sync", self, store).clone();
         let network_send = require!("sync", self, network).send.clone();
+        let network_globals = require!("sync", self, network).globals.clone();
 
-        let send = SyncService::spawn(executor, network_send, store);
+        let send = SyncService::spawn(executor, network_send, network_globals, store);
         self.sync = Some(SyncComponents { send });
 
         Ok(self)
@@ -163,8 +164,9 @@ impl ClientBuilder {
 
         let ctx = rpc::Context {
             config,
-            network_tx: self.network.as_ref().map(|network| network.send.clone()),
             network_globals: self.network.as_ref().map(|network| network.globals.clone()),
+            network_send: self.network.as_ref().map(|network| network.send.clone()),
+            sync_send: self.sync.as_ref().map(|sync| sync.send.clone()),
             shutdown_sender: executor.shutdown_sender(),
         };
 
