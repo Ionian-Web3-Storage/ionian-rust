@@ -96,7 +96,7 @@ pub enum RequestId {
 
 /// Types of messages that the network service can receive.
 #[derive(Debug)]
-pub enum ServiceMessage {
+pub enum NetworkMessage {
     /// Send an RPC request to the libp2p service.
     SendRequest {
         peer_id: PeerId,

@@ -1,10 +1,42 @@
 use super::{Client, RuntimeContext};
-use network::{NetworkConfig, NetworkGlobals, ServiceMessage};
+use miner::{MinerMessage, MinerService};
+use network::{
+    self, NetworkConfig, NetworkGlobals, NetworkMessage, RequestId, Service as LibP2PService,
+};
+use router::RouterService;
 use rpc::RPCConfig;
-use service::NetworkService;
 use std::sync::Arc;
 use storage::log_store::{SimpleLogStore, Store};
-use tokio::sync::mpsc::UnboundedSender;
+use sync::{SyncMessage, SyncService};
+use tokio::sync::mpsc;
+
+macro_rules! require {
+    ($component:expr, $self:ident, $e:ident) => {
+        $self
+            .$e
+            .as_ref()
+            .ok_or(format!("{} requires {}", $component, std::stringify!($e)))?
+    };
+}
+
+struct NetworkComponents {
+    send: mpsc::UnboundedSender<NetworkMessage>,
+    globals: Arc<NetworkGlobals>,
+
+    // note: these will be owned by the router service
+    owned: Option<(
+        LibP2PService<RequestId>,
+        mpsc::UnboundedReceiver<NetworkMessage>,
+    )>,
+}
+
+struct SyncComponents {
+    send: mpsc::UnboundedSender<SyncMessage>,
+}
+
+struct MinerComponents {
+    send: mpsc::UnboundedSender<MinerMessage>,
+}
 
 /// Builds a `Client` instance.
 ///
@@ -15,8 +47,11 @@ use tokio::sync::mpsc::UnboundedSender;
 pub struct ClientBuilder {
     runtime_context: Option<RuntimeContext>,
     store: Option<Arc<dyn Store>>,
-    network_globals: Option<Arc<NetworkGlobals>>,
-    network_send: Option<UnboundedSender<ServiceMessage>>,
+    network: Option<NetworkComponents>,
+    sync: Option<SyncComponents>,
+    miner: Option<MinerComponents>,
+
+    test: Option<u32>,
 }
 
 impl ClientBuilder {
@@ -25,8 +60,11 @@ impl ClientBuilder {
         Self {
             runtime_context: None,
             store: None,
-            network_globals: None,
-            network_send: None,
+            network: None,
+            sync: None,
+            miner: None,
+
+            test: None,
         }
     }
 
@@ -47,25 +85,71 @@ impl ClientBuilder {
 
     /// Starts the networking stack.
     pub async fn with_network(mut self, config: &NetworkConfig) -> Result<Self, String> {
-        let context = self
-            .runtime_context
-            .as_ref()
-            .ok_or("network requires a runtime_context")?
-            .clone();
+        let executor = require!("network", self, runtime_context).clone().executor;
 
-        let store = self
-            .store
-            .as_ref()
-            .ok_or("network requires a store")?
-            .clone();
+        // construct the libp2p service context
+        let service_context = network::Context { config };
 
-        let (network_globals, network_send) =
-            NetworkService::start(config, context.executor, store)
-                .await
-                .map_err(|e| format!("Failed to start network: {:?}", e))?;
+        // launch libp2p service
+        let (globals, libp2p) = LibP2PService::new(executor, service_context)
+            .await
+            .map_err(|e| format!("Failed to start network service: {:?}", e))?;
 
-        self.network_globals = Some(network_globals);
-        self.network_send = Some(network_send);
+        // construct communication channel
+        let (send, recv) = mpsc::unbounded_channel::<NetworkMessage>();
+
+        self.network = Some(NetworkComponents {
+            send,
+            globals,
+            owned: Some((libp2p, recv)),
+        });
+
+        Ok(self)
+    }
+
+    pub fn with_sync(mut self) -> Result<Self, String> {
+        let executor = require!("sync", self, runtime_context).clone().executor;
+        let store = require!("sync", self, store).clone();
+        let network_send = require!("sync", self, network).send.clone();
+
+        let send = SyncService::spawn(executor, network_send, store);
+        self.sync = Some(SyncComponents { send });
+
+        Ok(self)
+    }
+
+    pub fn with_miner(mut self) -> Result<Self, String> {
+        let executor = require!("miner", self, runtime_context).clone().executor;
+        let network_send = require!("miner", self, network).send.clone();
+
+        let send = MinerService::spawn(executor, network_send);
+        self.miner = Some(MinerComponents { send });
+
+        Ok(self)
+    }
+
+    /// Starts the networking stack.
+    pub fn with_router(mut self) -> Result<Self, String> {
+        let executor = require!("router", self, runtime_context).clone().executor;
+        let sync_send = require!("router", self, sync).send.clone(); // note: we can make this optional in the future
+        let miner_send = require!("router", self, miner).send.clone(); // note: we can make this optional in the future
+
+        let network = self.network.as_mut().ok_or("router requires a network")?;
+
+        let (libp2p, netowork_recv) = network
+            .owned
+            .take() // router takes ownership of libp2p and network_recv
+            .ok_or("router requires a network")?;
+
+        RouterService::spawn(
+            executor,
+            libp2p,
+            network.globals.clone(),
+            netowork_recv,
+            network.send.clone(),
+            sync_send,
+            miner_send,
+        );
 
         Ok(self)
     }
@@ -75,20 +159,13 @@ impl ClientBuilder {
             return Ok(self);
         }
 
-        let executor = self
-            .runtime_context
-            .as_ref()
-            .ok_or("rpc requires a runtime context")?
-            .executor
-            .clone();
-
-        let shutdown_sender = executor.shutdown_sender();
+        let executor = require!("rpc", self, runtime_context).clone().executor;
 
         let ctx = rpc::Context {
             config,
-            network_tx: self.network_send.clone(),
-            network_globals: self.network_globals.clone(),
-            shutdown_sender,
+            network_tx: self.network.as_ref().map(|network| network.send.clone()),
+            network_globals: self.network.as_ref().map(|network| network.globals.clone()),
+            shutdown_sender: executor.shutdown_sender(),
         };
 
         let rpc_handle = rpc::run_server(ctx)
@@ -103,12 +180,10 @@ impl ClientBuilder {
     /// Consumes the builder, returning a `Client` if all necessary components have been
     /// specified.
     pub fn build(self) -> Result<Client, String> {
-        self.runtime_context
-            .as_ref()
-            .ok_or("build requires a runtime context")?;
+        require!("client", self, runtime_context);
 
         Ok(Client {
-            network_globals: self.network_globals,
+            network_globals: self.network.as_ref().map(|network| network.globals.clone()),
         })
     }
 }

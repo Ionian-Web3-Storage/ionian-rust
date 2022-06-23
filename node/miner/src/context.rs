@@ -1,19 +1,19 @@
 #![allow(dead_code)]
 
-use network::ServiceMessage;
+use network::NetworkMessage;
 use tokio::sync::mpsc;
 
 pub(crate) struct MinerNetworkContext {
-    network_send: mpsc::UnboundedSender<ServiceMessage>,
+    network_send: mpsc::UnboundedSender<NetworkMessage>,
 }
 
 impl MinerNetworkContext {
-    pub fn new(network_send: mpsc::UnboundedSender<ServiceMessage>) -> Self {
+    pub fn new(network_send: mpsc::UnboundedSender<NetworkMessage>) -> Self {
         Self { network_send }
     }
 
     /// Sends an arbitrary network message.
-    pub fn send(&mut self, msg: ServiceMessage) -> Result<(), &'static str> {
+    pub fn send(&mut self, msg: NetworkMessage) -> Result<(), &'static str> {
         self.network_send.send(msg).map_err(|_| {
             debug!("Could not send message to the network service");
             "Network channel send Failed"
