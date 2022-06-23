@@ -53,6 +53,7 @@ pub struct SyncService {
     ctx: Arc<SyncNetworkContext>,
 
     /// A reference to the network globals and peer-db.
+    #[allow(dead_code)]
     network_globals: Arc<NetworkGlobals>,
 
     /// Log and transaction storage.

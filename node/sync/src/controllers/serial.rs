@@ -14,7 +14,7 @@ use storage::log_store::Store;
 const CHUNK_BATCH_SIZE: usize = 1024;
 
 // TODO(thegaram): set an appropriate request size
-const MAX_CHUNKS_TO_REQUEST: usize = CHUNK_BATCH_SIZE * 1;
+const MAX_CHUNKS_TO_REQUEST: usize = CHUNK_BATCH_SIZE;
 
 const PEER_REQUEST_TIMEOUT: Duration = Duration::from_secs(5);
 const DOWNLOAD_TIMEOUT: Duration = Duration::from_secs(5);
