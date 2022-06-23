@@ -1,5 +1,5 @@
 use crate::MinerNetworkContext;
-use network::ServiceMessage;
+use network::NetworkMessage;
 use tokio::sync::mpsc;
 
 const HEARTBEAT_INTERVAL_SEC: u64 = 10;
@@ -24,7 +24,7 @@ pub struct MinerService {
 impl MinerService {
     pub fn spawn(
         executor: task_executor::TaskExecutor,
-        network_send: mpsc::UnboundedSender<ServiceMessage>,
+        network_send: mpsc::UnboundedSender<NetworkMessage>,
     ) -> mpsc::UnboundedSender<MinerMessage> {
         let (miner_send, miner_recv) = mpsc::unbounded_channel::<MinerMessage>();
 

@@ -25,6 +25,7 @@ impl Deref for TempSimpleLogStore {
     }
 }
 
+#[allow(unused)]
 fn create_temp_log_store() -> TempSimpleLogStore {
     let temp_dir = TempDir::new("test_ionian_storage").unwrap();
     let store = SimpleLogStore::open(&temp_dir.path()).unwrap();
@@ -36,8 +37,8 @@ fn create_temp_log_store() -> TempSimpleLogStore {
 
 #[test]
 fn test_put_get() {
-    let store = create_temp_log_store();
-    let chunk_count = store.store.chunk_batch_size + 0;
+    let store = SimpleLogStore::memorydb().unwrap();
+    let chunk_count = store.chunk_batch_size + 0;
     let data_size = CHUNK_SIZE * chunk_count;
     let mut data = vec![0u8; data_size];
     for i in 0..chunk_count {
