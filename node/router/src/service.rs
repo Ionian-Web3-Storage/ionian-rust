@@ -5,7 +5,7 @@ use network::{
     PeerId, PeerRequestId, PubsubMessage, Request, RequestId, Response, Service as LibP2PService,
 };
 use std::sync::Arc;
-use sync::SyncMessage;
+use sync::{SyncMessage, SyncSender};
 use task_executor::ShutdownReason;
 use tokio::sync::mpsc;
 
@@ -24,7 +24,7 @@ pub struct RouterService {
     network_send: mpsc::UnboundedSender<NetworkMessage>,
 
     /// A channel to the syncing service.
-    sync_send: mpsc::UnboundedSender<SyncMessage>,
+    sync_send: SyncSender,
 
     /// A channel to the miner service.
     #[allow(dead_code)]
@@ -38,7 +38,7 @@ impl RouterService {
         network_globals: Arc<NetworkGlobals>,
         network_recv: mpsc::UnboundedReceiver<NetworkMessage>,
         network_send: mpsc::UnboundedSender<NetworkMessage>,
-        sync_send: mpsc::UnboundedSender<SyncMessage>,
+        sync_send: SyncSender,
         miner_send: mpsc::UnboundedSender<MinerMessage>,
     ) {
         // create the network service and spawn the task
@@ -73,7 +73,7 @@ impl RouterService {
     }
 
     fn send_to_sync(&mut self, message: SyncMessage) {
-        self.sync_send.send(message).unwrap_or_else(|e| {
+        self.sync_send.notify(message).unwrap_or_else(|e| {
             warn!( error = %e, "Could not send message to the sync service");
         });
     }

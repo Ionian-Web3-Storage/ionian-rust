@@ -13,7 +13,7 @@ use network::NetworkGlobals;
 use network::NetworkMessage;
 use std::error::Error;
 use std::sync::Arc;
-use sync::SyncMessage;
+use sync::SyncSender;
 use task_executor::ShutdownReason;
 use tokio::sync::mpsc::UnboundedSender;
 
@@ -30,7 +30,7 @@ pub struct Context {
     pub config: RPCConfig,
     pub network_globals: Option<Arc<NetworkGlobals>>,
     pub network_send: Option<UnboundedSender<NetworkMessage>>,
-    pub sync_send: Option<UnboundedSender<SyncMessage>>,
+    pub sync_send: Option<SyncSender>,
     pub shutdown_sender: Sender<ShutdownReason>,
 }
 

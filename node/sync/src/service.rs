@@ -11,6 +11,8 @@ use tokio::sync::mpsc;
 
 const HEARTBEAT_INTERVAL_SEC: u64 = 5;
 
+pub type SyncSender = channel::Sender<SyncMessage, SyncRequest, SyncResponse>;
+
 #[derive(Debug)]
 pub enum SyncMessage {
     AddPeer {
@@ -45,9 +47,19 @@ pub enum SyncMessage {
     },
 }
 
+#[derive(Debug)]
+pub enum SyncRequest {
+    SyncStatus { tx_seq: u64 },
+}
+
+#[derive(Debug)]
+pub enum SyncResponse {
+    SyncStatus { status: String },
+}
+
 pub struct SyncService {
     /// A receiving channel sent by the message processor thread.
-    msg_recv: mpsc::UnboundedReceiver<SyncMessage>,
+    msg_recv: channel::Receiver<SyncMessage, SyncRequest, SyncResponse>,
 
     /// A network context to contact the network service.
     ctx: Arc<SyncNetworkContext>,
@@ -72,8 +84,8 @@ impl SyncService {
         network_send: mpsc::UnboundedSender<NetworkMessage>,
         network_globals: Arc<NetworkGlobals>,
         store: Arc<dyn Store>,
-    ) -> mpsc::UnboundedSender<SyncMessage> {
-        let (sync_send, sync_recv) = mpsc::unbounded_channel::<SyncMessage>();
+    ) -> SyncSender {
+        let (sync_send, sync_recv) = channel::Channel::unbounded();
 
         let heartbeat =
             tokio::time::interval(tokio::time::Duration::from_secs(HEARTBEAT_INTERVAL_SEC));
@@ -97,7 +109,12 @@ impl SyncService {
         loop {
             tokio::select! {
                 // received sync message
-                Some(msg) = self.msg_recv.recv() => self.on_sync_msg(msg),
+                Some(msg) = self.msg_recv.recv() => {
+                    match msg {
+                        channel::Message::Notification(msg) => self.on_sync_msg(msg),
+                        channel::Message::Request(req, sender) => self.on_sync_request(req, sender),
+                    }
+                }
 
                 // heartbeat
                 _ = self.heartbeat.tick() => self.on_heartbeat(),
@@ -142,6 +159,19 @@ impl SyncService {
                 request_id,
             } => {
                 self.on_rpc_error(peer_id, request_id);
+            }
+        }
+    }
+
+    fn on_sync_request(&mut self, req: SyncRequest, sender: channel::ResponseSender<SyncResponse>) {
+        match req {
+            SyncRequest::SyncStatus { tx_seq } => {
+                let status = match self.controllers.get_mut(&tx_seq) {
+                    Some(controller) => controller.get_status(),
+                    None => "unknown".to_string(),
+                };
+
+                let _ = sender.send(SyncResponse::SyncStatus { status });
             }
         }
     }

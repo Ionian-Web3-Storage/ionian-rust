@@ -7,7 +7,7 @@ use router::RouterService;
 use rpc::RPCConfig;
 use std::sync::Arc;
 use storage::log_store::{SimpleLogStore, Store};
-use sync::{SyncMessage, SyncService};
+use sync::{SyncSender, SyncService};
 use tokio::sync::mpsc;
 
 macro_rules! require {
@@ -31,7 +31,7 @@ struct NetworkComponents {
 }
 
 struct SyncComponents {
-    send: mpsc::UnboundedSender<SyncMessage>,
+    send: SyncSender,
 }
 
 struct MinerComponents {

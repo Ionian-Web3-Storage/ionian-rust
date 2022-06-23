@@ -6,4 +6,4 @@ mod controllers;
 mod service;
 
 pub(crate) use context::SyncNetworkContext;
-pub use service::{SyncMessage, SyncService};
+pub use service::{SyncMessage, SyncRequest, SyncResponse, SyncSender, SyncService};

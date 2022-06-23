@@ -98,6 +98,10 @@ impl SerialSyncController {
         matches!(self.state, SyncState::Failed { .. })
     }
 
+    pub fn get_status(&self) -> String {
+        format!("{:?}", self.state)
+    }
+
     pub fn reset(&mut self) {
         self.next_chunk = 0;
         self.state = SyncState::Idle;

@@ -1,6 +1,7 @@
 [workspace]
 
 members = [
+    "common/channel",
     "common/directory",
     "common/hashset_delay",
     "common/lighthouse_metrics",
