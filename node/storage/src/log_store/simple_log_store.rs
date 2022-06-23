@@ -186,7 +186,8 @@ impl LogStoreChunkWrite for BatchChunkStore {
             tx.put(
                 COL_CHUNK,
                 &key,
-                &chunks.data[index * CHUNK_SIZE..end * CHUNK_SIZE],
+                &chunks.data[(index - chunks.start_index as usize) * CHUNK_SIZE
+                    ..(end - chunks.start_index as usize) * CHUNK_SIZE],
             );
         }
         self.kvdb.write(tx)?;
