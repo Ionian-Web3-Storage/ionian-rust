@@ -5,10 +5,11 @@ use crate::log_store::{
 use crate::IonianKeyValueDB;
 use anyhow::{anyhow, bail};
 use kvdb_rocksdb::{Database, DatabaseConfig};
-use merkle_light::hash::Algorithm;
+use merkle_light::hash::{Algorithm, Hashable};
 use merkle_light::merkle::MerkleTree;
 use merkle_light::proof::Proof;
-use merkle_tree::{Sha3Algorithm, TopTreeSha3Algorithm};
+use merkle_tree::RawLeafSha3Algorithm;
+use rayon::prelude::*;
 use shared_types::{
     Chunk, ChunkArray, ChunkArrayWithProof, ChunkProof, ChunkWithProof, DataRoot, Transaction,
     TransactionHash, CHUNK_SIZE,
@@ -28,9 +29,9 @@ const CHUNK_KEY_SIZE: usize = 8 + 4;
 const CHUNK_BATCH_SIZE: usize = 1024;
 
 /// This represents the subtree of a chunk or the whole data merkle tree.
-pub type SubMerkleTree = MerkleTree<[u8; 32], Sha3Algorithm>;
+pub type SubMerkleTree = MerkleTree<[u8; 32], RawLeafSha3Algorithm>;
 /// This can only be used to represent the top tree where the leaves are chunk subtree roots.
-pub type TopMerkleTree = MerkleTree<[u8; 32], TopTreeSha3Algorithm>;
+pub type TopMerkleTree = MerkleTree<[u8; 32], RawLeafSha3Algorithm>;
 type DataProof = Proof<[u8; 32]>;
 
 macro_rules! try_option {
@@ -102,7 +103,15 @@ pub fn sub_merkle_tree(leaf_data: &[u8]) -> Result<SubMerkleTree> {
             .0
             .copy_from_slice(&leaf_data[offset..offset + CHUNK_SIZE]);
     }
-    Ok(SubMerkleTree::from_data(data))
+    Ok(SubMerkleTree::new(
+        data.into_par_iter()
+            .map(|e| {
+                let mut a = RawLeafSha3Algorithm::default();
+                e.hash(&mut a);
+                a.hash()
+            })
+            .collect::<Vec<_>>(),
+    ))
 }
 
 #[allow(unused)]

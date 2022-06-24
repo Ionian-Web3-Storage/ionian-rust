@@ -3,7 +3,7 @@ use ethereum_types::H256;
 use merkle_light::hash::{Algorithm, Hashable};
 use merkle_light::merkle::{log2_pow2, next_pow2};
 use merkle_light::proof::Proof;
-use merkle_tree::Sha3Algorithm;
+use merkle_tree::{RawLeafSha3Algorithm, LEAF};
 use ssz_derive::{Decode as DeriveDecode, Encode as DeriveEncode};
 use std::hash::Hasher;
 
@@ -26,7 +26,9 @@ pub struct Chunk(pub [u8; CHUNK_SIZE]);
 
 impl<H: Hasher> Hashable<H> for Chunk {
     fn hash(&self, state: &mut H) {
-        state.write(&self.0)
+        let mut prepended = vec![LEAF];
+        prepended.extend_from_slice(&self.0);
+        state.write(&prepended)
     }
 }
 
@@ -79,7 +81,7 @@ impl ChunkProof {
                 root.0
             );
         }
-        let mut h = Sha3Algorithm::default();
+        let mut h = RawLeafSha3Algorithm::default();
         chunk.hash(&mut h);
         let chunk_hash = h.hash();
         h.reset();
@@ -92,7 +94,7 @@ impl ChunkProof {
                 chunk_hash
             ));
         }
-        Ok(proof.validate::<Sha3Algorithm>())
+        Ok(proof.validate::<RawLeafSha3Algorithm>())
     }
 }
 

@@ -6,5 +6,5 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-merkle_light = { path = "../../../merkle_light/merkle" }
-rust-crypto = "0.2.36"
+merkle_light = { git = "https://github.com/zz-ionian/merkle_light.git", rev = "2da76ae" }
+tiny-keccak = "2.0.2"

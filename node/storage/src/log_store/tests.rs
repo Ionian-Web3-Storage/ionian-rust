@@ -2,6 +2,7 @@ use crate::log_store::simple_log_store::{sub_merkle_tree, SimpleLogStore};
 use crate::log_store::{LogStoreChunkRead, LogStoreChunkWrite, LogStoreRead, LogStoreWrite};
 use rand::random;
 use shared_types::{ChunkArray, ChunkProof, Transaction, TransactionHash, CHUNK_SIZE};
+use std::cmp;
 use std::ops::Deref;
 use tempdir::TempDir;
 
@@ -38,17 +39,13 @@ fn create_temp_log_store() -> TempSimpleLogStore {
 #[test]
 fn test_put_get() {
     let store = SimpleLogStore::memorydb().unwrap();
-    let chunk_count = store.chunk_batch_size + 1;
+    let chunk_count = store.chunk_batch_size * 2 + 1;
     let data_size = CHUNK_SIZE * chunk_count;
     let mut data = vec![0u8; data_size];
     for i in 0..chunk_count {
         data[i * CHUNK_SIZE] = random();
     }
     let merkle = sub_merkle_tree(&data).unwrap();
-    let chunk_array = ChunkArray {
-        data,
-        start_index: 0,
-    };
     let tx_hash = TransactionHash::random();
     let tx = Transaction {
         hash: tx_hash,
@@ -57,8 +54,22 @@ fn test_put_get() {
         seq: 0,
     };
     store.put_tx(tx.clone()).unwrap();
-    store.put_chunks(tx.seq, chunk_array.clone()).unwrap();
+    for start_index in (0..chunk_count).step_by(store.chunk_batch_size) {
+        let end = cmp::min(
+            (start_index + store.chunk_batch_size) * CHUNK_SIZE,
+            data.len(),
+        );
+        let chunk_array = ChunkArray {
+            data: data[start_index * CHUNK_SIZE..end].to_vec(),
+            start_index: start_index as u32,
+        };
+        store.put_chunks(tx.seq, chunk_array.clone()).unwrap();
+    }
     store.finalize_tx(tx.seq).unwrap();
+    let chunk_array = ChunkArray {
+        data,
+        start_index: 0,
+    };
     assert_eq!(store.get_tx_by_seq_number(0).unwrap().unwrap(), tx);
     assert_eq!(store.get_tx_by_hash(&tx_hash).unwrap().unwrap(), tx);
     for i in 0..chunk_count {
