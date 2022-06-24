@@ -55,7 +55,7 @@ impl MinerService {
 
                 // periodic checks
                 _ = self.heartbeat.tick() => {
-                    debug!("Miner heartbeat");
+                    // EMPTY
                 }
             }
         }

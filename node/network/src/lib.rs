@@ -92,6 +92,12 @@ pub use service::{load_private_key, Context, Libp2pEvent, Service, NETWORK_KEY_F
 #[derive(Debug, Clone, Copy)]
 pub enum RequestId {
     Router,
+    Sync(SyncId),
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum SyncId {
+    SerialSync { tx_seq: u64 },
 }
 
 /// Types of messages that the network service can receive.

@@ -11,6 +11,7 @@ jsonrpsee = { version = "0.14.0", features = ["full"] }
 network = { path = "../network" }
 serde = { version = "1.0.137", features = ["derive"] }
 shared_types = { path = "../shared_types" }
+sync = { path = "../sync" }
 task_executor = { path = "../../common/task_executor" }
 tokio = { version = "1.19.2", features = ["macros", "sync"] }
 tracing = "0.1.35"

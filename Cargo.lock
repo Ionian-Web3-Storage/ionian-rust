@@ -4150,6 +4150,7 @@ dependencies = [
  "network",
  "serde",
  "shared_types",
+ "sync",
  "task_executor",
  "tokio",
  "tracing",
@@ -4639,6 +4640,7 @@ name = "sync"
 version = "0.1.0"
 dependencies = [
  "network",
+ "rand 0.8.5",
  "shared_types",
  "storage",
  "task_executor",
