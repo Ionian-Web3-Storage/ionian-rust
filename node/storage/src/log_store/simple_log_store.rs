@@ -52,16 +52,12 @@ macro_rules! try_option {
 /// Here we only encode the top tree leaf data because we cannot build `VecStore` from raw bytes.
 /// If we want to save the whole tree, we'll need to save it as files using disk-related store,
 /// or fork the dependency to expose the VecStore initialization method.
-fn encode_merkle_tree<A: Algorithm<[u8; 32]>>(
-    merkle_tree: &MerkleTree<[u8; 32], A>,
-    actual_leafs: usize,
-) -> Vec<u8> {
+fn encode_merkle_tree<A: Algorithm<[u8; 32]>>(merkle_tree: &MerkleTree<[u8; 32], A>) -> Vec<u8> {
     let data = merkle_tree.as_slice();
     let mut data_bytes = Vec::new();
-    data_bytes.extend_from_slice(&(actual_leafs as u32).to_be_bytes());
-    // for h in &**merkle_tree.data().unwrap() {
-    for i in 0..actual_leafs {
-        data_bytes.extend_from_slice(&data[i]);
+    data_bytes.extend_from_slice(&(merkle_tree.leafs() as u32).to_be_bytes());
+    for leaf in &data[0..merkle_tree.leafs()] {
+        data_bytes.extend_from_slice(leaf.as_slice());
     }
     data_bytes
 }
@@ -73,8 +69,8 @@ fn decode_merkle_tree(bytes: &[u8]) -> Result<TopMerkleTree> {
             bytes.len()
         ));
     }
-    let actual_leafs = u32::from_be_bytes(bytes[0..4].try_into().unwrap()) as usize;
-    let expected_len = 4 + 32 * actual_leafs;
+    let leaf_count = u32::from_be_bytes(bytes[0..4].try_into().unwrap()) as usize;
+    let expected_len = 4 + 32 * leaf_count;
     if bytes.len() != expected_len {
         bail!(anyhow!(
             "Merkle tree encoding incorrect length: len={} expected={}",
@@ -82,10 +78,10 @@ fn decode_merkle_tree(bytes: &[u8]) -> Result<TopMerkleTree> {
             expected_len
         ));
     }
-    let mut data: Vec<[u8; 32]> = vec![Default::default(); actual_leafs];
-    for i in 0..actual_leafs {
+    let mut data: Vec<[u8; 32]> = vec![Default::default(); leaf_count];
+    for (i, leaf) in data.iter_mut().enumerate() {
         let offset = 4 + i * 32;
-        data[i].copy_from_slice(&bytes[offset..offset + 32]);
+        leaf.copy_from_slice(&bytes[offset..offset + 32]);
     }
     Ok(TopMerkleTree::new(data))
 }
@@ -95,11 +91,11 @@ pub fn sub_merkle_tree(leaf_data: &[u8]) -> Result<SubMerkleTree> {
     if leaf_data.len() % CHUNK_SIZE != 0 {
         bail!(anyhow!("merkle_tree: unmatch data size"));
     }
-    let actual_leafs = leaf_data.len() / CHUNK_SIZE;
-    let mut data: Vec<Chunk> = vec![Chunk([0; CHUNK_SIZE]); actual_leafs];
-    for i in 0..actual_leafs {
+    let leaf_count = leaf_data.len() / CHUNK_SIZE;
+    let mut data: Vec<Chunk> = vec![Chunk([0; CHUNK_SIZE]); leaf_count];
+    for (i, chunk) in data.iter_mut().enumerate() {
         let offset = i * CHUNK_SIZE;
-        data[i]
+        chunk
             .0
             .copy_from_slice(&leaf_data[offset..offset + CHUNK_SIZE]);
     }
@@ -373,7 +369,7 @@ impl LogStoreWrite for SimpleLogStore {
         self.kvdb.put(
             COL_TX_MERKLE,
             &tx_seq.to_be_bytes(),
-            &encode_merkle_tree(&merkle_tree, merkle_tree.leafs()),
+            &encode_merkle_tree(&merkle_tree),
         )?;
         // TODO: Mark the tx as completed.
         Ok(())
