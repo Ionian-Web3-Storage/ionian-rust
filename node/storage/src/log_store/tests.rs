@@ -38,7 +38,7 @@ fn create_temp_log_store() -> TempSimpleLogStore {
 #[test]
 fn test_put_get() {
     let store = SimpleLogStore::memorydb().unwrap();
-    let chunk_count = store.chunk_batch_size + 0;
+    let chunk_count = store.chunk_batch_size + 1;
     let data_size = CHUNK_SIZE * chunk_count;
     let mut data = vec![0u8; data_size];
     for i in 0..chunk_count {
@@ -82,6 +82,7 @@ fn test_put_get() {
         chunk_array
     );
     for i in 0..chunk_count {
+        println!("{}", i);
         let chunk_with_proof = store
             .get_chunk_with_proof_by_tx_and_index(tx.seq, i)
             .unwrap()
@@ -91,8 +92,13 @@ fn test_put_get() {
             chunk_with_proof.proof,
             ChunkProof::from_merkle_proof(&merkle.gen_proof(i))
         );
-        // println!("{:?}", chunk_with_proof.proof);
-        assert!(chunk_with_proof.validate(&tx.data_merkle_root, i).unwrap());
+        assert!(
+            chunk_with_proof
+                .validate(&tx.data_merkle_root, i, chunk_count)
+                .unwrap(),
+            "proof={:?}",
+            chunk_with_proof.proof
+        );
     }
     for i in (0..chunk_count).step_by(store.chunk_batch_size) {
         let end = std::cmp::min(i + store.chunk_batch_size, chunk_count);
@@ -105,7 +111,7 @@ fn test_put_get() {
             chunk_array.sub_array(i, end).unwrap()
         );
         assert!(chunk_array_with_proof
-            .validate(&tx.data_merkle_root)
+            .validate(&tx.data_merkle_root, chunk_count)
             .unwrap());
     }
 }

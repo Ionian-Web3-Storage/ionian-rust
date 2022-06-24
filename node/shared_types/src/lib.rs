@@ -1,6 +1,7 @@
 use anyhow::{anyhow, bail, Result};
 use ethereum_types::H256;
 use merkle_light::hash::{Algorithm, Hashable};
+use merkle_light::merkle::{log2_pow2, next_pow2};
 use merkle_light::proof::Proof;
 use merkle_tree::Sha3Algorithm;
 use ssz_derive::{Decode as DeriveDecode, Encode as DeriveEncode};
@@ -49,19 +50,34 @@ impl ChunkProof {
         }
     }
 
-    pub fn validate(&self, chunk: &Chunk, root: &DataRoot, position: usize) -> Result<bool> {
+    pub fn validate(
+        &self,
+        chunk: &Chunk,
+        root: &DataRoot,
+        position: usize,
+        total_chunk_count: usize,
+    ) -> Result<bool> {
+        let tree_depth = log2_pow2(next_pow2(total_chunk_count));
         let mut proof_position = 0;
-        for (i, is_left) in self.path.iter().enumerate() {
+        for (i, is_left) in self.path.iter().rev().enumerate() {
             if !is_left {
-                proof_position += 1 << i;
+                proof_position += 1 << (tree_depth - 1 - i);
             }
         }
         if proof_position != position {
-            return Ok(false);
+            bail!(
+                "wrong position: proof_pos={} provided={}",
+                proof_position,
+                position
+            );
         }
         let proof = Proof::<[u8; 32]>::new(self.lemma.clone(), self.path.clone());
         if proof.root() != root.0 {
-            return Ok(false);
+            bail!(
+                "root mismatch, proof_root={:?} provided={:?}",
+                proof.root(),
+                root.0
+            );
         }
         let mut h = Sha3Algorithm::default();
         chunk.hash(&mut h);
@@ -94,8 +110,14 @@ pub struct ChunkWithProof {
 }
 
 impl ChunkWithProof {
-    pub fn validate(&self, root: &DataRoot, position: usize) -> Result<bool> {
-        self.proof.validate(&self.chunk, root, position)
+    pub fn validate(
+        &self,
+        root: &DataRoot,
+        position: usize,
+        total_chunk_count: usize,
+    ) -> Result<bool> {
+        self.proof
+            .validate(&self.chunk, root, position, total_chunk_count)
     }
 }
 
@@ -108,16 +130,18 @@ pub struct ChunkArrayWithProof {
 }
 
 impl ChunkArrayWithProof {
-    pub fn validate(&self, root: &DataRoot) -> Result<bool> {
+    pub fn validate(&self, root: &DataRoot, total_chunk_count: usize) -> Result<bool> {
         // FIXME: Validate `chunks.data`.
         let start_chunk = self
             .chunks
             .first_chunk()
             .ok_or_else(|| anyhow!("no start chunk"))?;
-        if !self
-            .start_proof
-            .validate(&start_chunk, root, self.chunks.start_index as usize)?
-        {
+        if !self.start_proof.validate(
+            &start_chunk,
+            root,
+            self.chunks.start_index as usize,
+            total_chunk_count,
+        )? {
             return Ok(false);
         }
         let end_chunk = self
@@ -128,6 +152,7 @@ impl ChunkArrayWithProof {
             &end_chunk,
             root,
             self.chunks.start_index as usize + self.chunks.data.len() / CHUNK_SIZE - 1,
+            total_chunk_count,
         )
     }
 }

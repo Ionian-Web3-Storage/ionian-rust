@@ -499,7 +499,12 @@ fn chunk_proof(top_proof: &DataProof, sub_proof: &DataProof) -> Result<ChunkProo
     }
     let mut lemma = sub_proof.lemma().to_vec();
     let mut path = sub_proof.path().to_vec();
-    assert!(lemma.pop().is_some());
+    if lemma.len() == 1 {
+        // Proof for a single-node tree.
+        assert!(path.is_empty());
+    } else {
+        assert!(lemma.pop().is_some());
+    }
     lemma.extend_from_slice(&top_proof.lemma()[1..]);
     path.extend_from_slice(top_proof.path());
     let proof = DataProof::new(lemma, path);
