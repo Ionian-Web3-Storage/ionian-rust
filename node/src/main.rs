@@ -28,6 +28,9 @@ async fn start_node(context: RuntimeContext, config: IonianConfig) -> Result<Cli
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
+    // enable backtraces
+    std::env::set_var("RUST_BACKTRACE", "1");
+
     // runtime environment
     let mut environment = client::EnvironmentBuilder::new()
         .multi_threaded_tokio_runtime()?

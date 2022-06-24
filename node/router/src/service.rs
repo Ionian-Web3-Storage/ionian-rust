@@ -120,7 +120,7 @@ impl RouterService {
                     self.on_rpc_response(peer_id, id, response);
                 }
                 BehaviourEvent::RPCFailed { id, peer_id } => {
-                    self.on_rpc_failed(peer_id, id);
+                    self.on_rpc_error(peer_id, id);
                 }
                 BehaviourEvent::StatusPeer(peer_id) => {
                     self.send_status(peer_id);
@@ -234,7 +234,7 @@ impl RouterService {
                 self.on_status_request(peer_id, request_id, status);
             }
             Request::GetChunks(request) => {
-                self.send_to_sync(SyncMessage::GetChunksRequest {
+                self.send_to_sync(SyncMessage::RequestChunks {
                     peer_id,
                     request_id,
                     request,
@@ -252,6 +252,11 @@ impl RouterService {
                 self.on_status_response(peer_id, status_message);
             }
             Response::Chunks(response) => {
+                let request_id = match request_id {
+                    RequestId::Sync(sync_id) => sync_id,
+                    _ => unreachable!("All Chunks responses belong to sync"),
+                };
+
                 self.send_to_sync(SyncMessage::ChunksResponse {
                     peer_id,
                     request_id,
@@ -264,8 +269,14 @@ impl RouterService {
         }
     }
 
-    fn on_rpc_failed(&mut self, _peer_id: PeerId, _request_id: RequestId) {
-        // TODO
+    fn on_rpc_error(&mut self, peer_id: PeerId, request_id: RequestId) {
+        // Check if the failed RPC belongs to sync
+        if let RequestId::Sync(request_id) = request_id {
+            self.send_to_sync(SyncMessage::RpcError {
+                peer_id,
+                request_id,
+            });
+        }
     }
 
     fn on_pubsub_message(&mut self, source: PeerId, id: MessageId, message: PubsubMessage) {

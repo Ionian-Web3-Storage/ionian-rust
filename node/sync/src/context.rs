@@ -13,10 +13,9 @@ impl SyncNetworkContext {
     }
 
     /// Sends an arbitrary network message.
-    pub fn send(&mut self, msg: NetworkMessage) -> Result<(), &'static str> {
-        self.network_send.send(msg).map_err(|_| {
-            debug!("Could not send message to the network service");
-            "Network channel send Failed"
+    pub fn send(&self, msg: NetworkMessage) {
+        self.network_send.send(msg).unwrap_or_else(|_| {
+            warn!("Could not send message to the network service");
         })
     }
 }
