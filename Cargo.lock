@@ -4576,6 +4576,7 @@ dependencies = [
  "merkle_tree",
  "rand 0.8.5",
  "rayon",
+ "rand 0.8.5",
  "shared_types",
  "tempdir",
  "tracing",

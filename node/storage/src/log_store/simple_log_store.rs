@@ -6,9 +6,10 @@ use crate::IonianKeyValueDB;
 use anyhow::{anyhow, bail};
 use kvdb_rocksdb::{Database, DatabaseConfig};
 use merkle_light::hash::{Algorithm, Hashable};
-use merkle_light::merkle::MerkleTree;
+use merkle_light::merkle::{next_pow2, MerkleTree};
 use merkle_light::proof::Proof;
 use merkle_tree::RawLeafSha3Algorithm;
+use merkletree::proof::Proof;
 use rayon::prelude::*;
 use shared_types::{
     Chunk, ChunkArray, ChunkArrayWithProof, ChunkProof, ChunkWithProof, DataRoot, Transaction,
@@ -18,6 +19,7 @@ use ssz::{Decode, DecodeError, Encode};
 use std::cmp;
 use std::path::Path;
 use std::sync::Arc;
+use typenum::U0;
 
 const COL_TX: u32 = 0;
 const COL_TX_HASH_INDEX: u32 = 1;
@@ -355,7 +357,7 @@ impl LogStoreWrite for SimpleLogStore {
             }
             let merkle_tree = sub_merkle_tree(&chunks.data)?;
             let merkle_root = merkle_tree.root();
-            chunk_batch_roots.push(merkle_root);
+            chunk_batch_roots.extend_from_slice(&merkle_root);
         }
         let merkle_tree = TopMerkleTree::new(chunk_batch_roots);
         if merkle_tree.root() != tx.data_merkle_root.0 {
