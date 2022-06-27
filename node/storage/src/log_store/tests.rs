@@ -1,7 +1,7 @@
 use crate::log_store::simple_log_store::{sub_merkle_tree, SimpleLogStore};
 use crate::log_store::{LogStoreChunkRead, LogStoreChunkWrite, LogStoreRead, LogStoreWrite};
 use rand::random;
-use shared_types::{ChunkArray, ChunkProof, Transaction, TransactionHash, CHUNK_SIZE};
+use shared_types::{Chunk, ChunkArray, ChunkProof, Transaction, TransactionHash, CHUNK_SIZE};
 use std::cmp;
 use std::ops::Deref;
 use tempdir::TempDir;
@@ -123,5 +123,25 @@ fn test_put_get() {
         assert!(chunk_array_with_proof
             .validate(&tx.data_merkle_root, chunk_count)
             .unwrap());
+    }
+}
+
+#[test]
+fn test_root() {
+    let results = [
+        [
+            241, 48, 193, 94, 101, 245, 240, 244, 161, 29, 60, 193, 132, 4, 58, 78, 37, 196, 155,
+            133, 151, 104, 229, 103, 105, 91, 48, 189, 66, 90, 95, 116,
+        ],
+        [
+            122, 137, 1, 255, 31, 110, 121, 53, 237, 46, 119, 179, 186, 109, 25, 47, 207, 184, 83,
+            210, 235, 132, 9, 94, 252, 42, 77, 88, 169, 8, 80, 157,
+        ],
+    ];
+    for (test_index, n_chunk) in [6, 7].into_iter().enumerate() {
+        let data = vec![0; n_chunk * CHUNK_SIZE];
+        let mt = sub_merkle_tree(&data).unwrap();
+        println!("{:?} {}", mt.root(), hex::encode(&mt.root()));
+        assert_eq!(results[test_index], mt.root());
     }
 }

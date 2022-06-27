@@ -60,3 +60,37 @@ impl Algorithm<CryptoSHA256Hash> for RawLeafSha3Algorithm {
         self.hash()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::{RawLeafSha3Algorithm, LEAF};
+    use merkle_light::{hash::Algorithm, merkle::MerkleTree};
+    use std::hash::Hasher;
+
+    #[test]
+    fn test_root() {
+        let results = [
+            [
+                241, 48, 193, 94, 101, 245, 240, 244, 161, 29, 60, 193, 132, 4, 58, 78, 37, 196,
+                155, 133, 151, 104, 229, 103, 105, 91, 48, 189, 66, 90, 95, 116,
+            ],
+            [
+                122, 137, 1, 255, 31, 110, 121, 53, 237, 46, 119, 179, 186, 109, 25, 47, 207, 184,
+                83, 210, 235, 132, 9, 94, 252, 42, 77, 88, 169, 8, 80, 157,
+            ],
+        ];
+        for (test_index, n_chunk) in [6, 7].into_iter().enumerate() {
+            let mut data = Vec::with_capacity(n_chunk);
+            for _ in 0..n_chunk {
+                let mut chunk_for_hash = vec![LEAF];
+                chunk_for_hash.extend_from_slice(&[0; 256]);
+                let mut a = RawLeafSha3Algorithm::default();
+                a.write(&chunk_for_hash);
+                data.push(a.hash());
+            }
+            let mt = MerkleTree::<_, RawLeafSha3Algorithm>::new(data);
+            println!("{:?} {}", mt.root(), hex::encode(&mt.root()));
+            assert_eq!(results[test_index], mt.root());
+        }
+    }
+}

@@ -2977,6 +2977,7 @@ dependencies = [
 name = "merkle_tree"
 version = "0.1.0"
 dependencies = [
+ "hex",
  "merkle_light",
  "tiny-keccak",
 ]
@@ -4569,6 +4570,7 @@ dependencies = [
  "anyhow",
  "eth2_ssz",
  "ethereum-types 0.13.1",
+ "hex",
  "kvdb",
  "kvdb-memorydb",
  "kvdb-rocksdb",

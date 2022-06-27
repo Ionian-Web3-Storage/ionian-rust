@@ -7,4 +7,7 @@ edition = "2021"
 
 [dependencies]
 merkle_light = { git = "https://github.com/zz-ionian/merkle_light.git", rev = "2da76ae" }
-tiny-keccak = "2.0.2"
+tiny-keccak = { version = "2.0.2", features = ["keccak"] }
+
+[dev-dependencies]
+hex = "0.4.3"
