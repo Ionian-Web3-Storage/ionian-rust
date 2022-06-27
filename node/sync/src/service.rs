@@ -223,14 +223,14 @@ impl SyncService {
             .store
             .get_chunks_by_tx_and_index_range(
                 request.tx_seq,
-                request.index_start,
-                request.index_end,
+                request.index_start as usize,
+                request.index_end as usize,
             )
             .map(|maybe_chunks| {
                 maybe_chunks.map(|chunks| ChunkArrayWithProof {
                     chunks,
-                    start_proof: ChunkProof {},
-                    end_proof: ChunkProof {},
+                    start_proof: ChunkProof::new_empty(),
+                    end_proof: ChunkProof::new_empty(),
                 })
             });
 

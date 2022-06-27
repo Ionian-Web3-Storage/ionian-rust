@@ -191,11 +191,8 @@ impl SerialSyncController {
                 }
 
                 // invalid chunk range: ban and re-request
-                let ChunkArray {
-                    start_index,
-                    end_index,
-                    ..
-                } = response.chunks;
+                let ChunkArray { start_index, .. } = response.chunks;
+                let end_index = start_index + (response.chunks.data.len() / CHUNK_SIZE) as u32;
 
                 if start_index != from_chunk as u32 || end_index != to_chunk as u32 {
                     warn!(%self.tx_seq, "Got unexpected chunks from peer, expected={from_chunk}..{to_chunk}, actual={start_index}..{end_index}");

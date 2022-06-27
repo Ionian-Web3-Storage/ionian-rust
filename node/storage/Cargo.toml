@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-anyhow = "1.0.58"
+anyhow = { version = "1.0.58", features = ["backtrace"] }
 eth2_ssz = "0.4.0"
 ethereum-types = "0.13.1"
 kvdb = "0.11.0"
@@ -14,3 +14,8 @@ merkle_tree = { path = "../../common/merkle_tree"}
 merkletree = "0.21.0"
 shared_types = { path = "../shared_types" }
 tracing = "0.1.35"
+typenum = "1.15.0"
+
+[dev-dependencies]
+tempdir = "0.3.7"
+rand = "0.8.5"

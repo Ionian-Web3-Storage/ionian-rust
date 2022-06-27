@@ -6,6 +6,8 @@ use crate::error::Result;
 
 mod simple_log_store;
 pub use simple_log_store::SimpleLogStore;
+#[cfg(test)]
+mod tests;
 
 /// The trait to read the transactions already appended to the log.
 ///
@@ -21,28 +23,28 @@ pub trait LogStoreRead: LogStoreChunkRead {
     fn get_chunk_with_proof_by_tx_and_index(
         &self,
         tx_seq: u64,
-        index: u32,
+        index: usize,
     ) -> Result<Option<ChunkWithProof>>;
 
     fn get_chunks_with_proof_by_tx_and_index_range(
         &self,
         tx_seq: u64,
-        index_start: u32,
-        index_end: u32,
+        index_start: usize,
+        index_end: usize,
     ) -> Result<Option<ChunkArrayWithProof>>;
 }
 
 pub trait LogStoreChunkRead {
     /// Get a data chunk by the transaction sequence number and the chunk offset in the transaction.
     /// Accessing a single chunk is mostly used for mining.
-    fn get_chunk_by_tx_and_index(&self, tx_seq: u64, index: u32) -> Result<Option<Chunk>>;
+    fn get_chunk_by_tx_and_index(&self, tx_seq: u64, index: usize) -> Result<Option<Chunk>>;
 
     /// Get a list of continuous chunks by the transaction sequence number and an index range (`index_end` excluded).
     fn get_chunks_by_tx_and_index_range(
         &self,
         tx_seq: u64,
-        index_start: u32,
-        index_end: u32,
+        index_start: usize,
+        index_end: usize,
     ) -> Result<Option<ChunkArray>>;
 }
 

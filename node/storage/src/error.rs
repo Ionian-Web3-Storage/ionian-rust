@@ -1,9 +1,10 @@
+use anyhow;
 use ssz::DecodeError;
 use std::error::Error as ErrorTrait;
 use std::fmt::{Debug, Display, Formatter};
 use std::io::Error as IoError;
 
-pub type Result<T> = std::result::Result<T, Error>;
+pub type Result<T> = anyhow::Result<T>;
 
 #[derive(Debug)]
 pub enum Error {
@@ -23,6 +24,12 @@ impl From<IoError> for Error {
 impl From<DecodeError> for Error {
     fn from(e: DecodeError) -> Self {
         Error::ValueDecodingError(e)
+    }
+}
+
+impl From<anyhow::Error> for Error {
+    fn from(e: anyhow::Error) -> Self {
+        Error::Custom(e.to_string())
     }
 }
 
