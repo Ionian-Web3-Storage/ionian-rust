@@ -1,7 +1,7 @@
 use crate::log_store::simple_log_store::{sub_merkle_tree, SimpleLogStore};
 use crate::log_store::{LogStoreChunkRead, LogStoreChunkWrite, LogStoreRead, LogStoreWrite};
 use rand::random;
-use shared_types::{Chunk, ChunkArray, ChunkProof, Transaction, TransactionHash, CHUNK_SIZE};
+use shared_types::{ChunkArray, ChunkProof, Transaction, TransactionHash, CHUNK_SIZE};
 use std::cmp;
 use std::ops::Deref;
 use tempdir::TempDir;

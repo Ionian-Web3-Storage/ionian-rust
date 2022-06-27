@@ -11,7 +11,7 @@ kvdb = "0.10.0"
 kvdb-memorydb = "0.10.0"
 kvdb-rocksdb = "0.14.0"
 #merkle_light = {git = "https://github.com/sitano/merkle_light.git", rev = "fe31d4e" }
-merkle_light = { git = "https://github.com/zz-ionian/merkle_light.git", rev = "2da76ae" }
+merkle_light = { path = "../../common/merkle_light" }
 merkle_tree = { path = "../../common/merkle_tree"}
 rayon = "1.5.3"
 shared_types = { path = "../shared_types" }
