@@ -20,6 +20,7 @@ categories    = ["data-structures", "cryptography"]
 ring = { version = "^0.16.20", optional = true }
 rust-crypto = { version = "^0.2.36", optional = true }
 rand = { version = "^0.8.5", optional = true }
+rayon = "1.5.3"
 
 [dev-dependencies]
 
