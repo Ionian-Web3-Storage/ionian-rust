@@ -23,7 +23,8 @@ const COL_TX: u32 = 0;
 const COL_TX_HASH_INDEX: u32 = 1;
 const COL_TX_MERKLE: u32 = 2;
 const COL_CHUNK: u32 = 3;
-const COL_NUM: u32 = 4;
+const COL_TX_COMPLETED: u32 = 4;
+const COL_NUM: u32 = 5;
 // A chunk key is the concatenation of tx_seq(u64) and start_index(u32)
 const CHUNK_KEY_SIZE: usize = 8 + 4;
 const CHUNK_BATCH_SIZE: usize = 1024;
@@ -371,6 +372,8 @@ impl LogStoreWrite for SimpleLogStore {
             &tx_seq.to_be_bytes(),
             &encode_merkle_tree(&merkle_tree),
         )?;
+        self.kvdb
+            .put(COL_TX_COMPLETED, &tx_seq.to_be_bytes(), &[0])?;
         // TODO: Mark the tx as completed.
         Ok(())
     }
@@ -484,6 +487,12 @@ impl LogStoreRead for SimpleLogStore {
                 end_proof,
             }))
         }
+    }
+
+    fn check_tx_completed(&self, seq: u64) -> Result<bool> {
+        self.kvdb
+            .has_key(COL_TX_COMPLETED, &seq.to_be_bytes())
+            .map_err(Into::into)
     }
 }
 

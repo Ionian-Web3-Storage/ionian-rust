@@ -32,6 +32,8 @@ pub trait LogStoreRead: LogStoreChunkRead {
         index_start: usize,
         index_end: usize,
     ) -> Result<Option<ChunkArrayWithProof>>;
+
+    fn check_tx_completed(&self, seq: u64) -> Result<bool>;
 }
 
 pub trait LogStoreChunkRead {
