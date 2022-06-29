@@ -204,6 +204,12 @@ impl LogStoreChunkWrite for BatchChunkStore {
         self.kvdb.write(tx)?;
         Ok(())
     }
+
+    fn remove_all_chunks(&self, tx_seq: u64) -> Result<()> {
+        self.kvdb
+            .delete_with_prefix(COL_CHUNK, &tx_seq.to_be_bytes())
+            .map_err(Into::into)
+    }
 }
 
 impl LogStoreChunkRead for BatchChunkStore {
@@ -254,6 +260,15 @@ impl LogStoreChunkRead for BatchChunkStore {
             start_index: index_start as u32,
         }))
     }
+
+    fn get_chunk_index_list(&self, tx_seq: u64) -> Result<Vec<usize>> {
+        // TODO: Bench and compare with using rocksdb prefix_extractor.
+        // TODO: Only iterate the key without reading the value.
+        self.kvdb
+            .iter_with_prefix(COL_CHUNK, &tx_seq.to_be_bytes())
+            .map(|(k, _)| chunk_index(k.as_ref()))
+            .collect()
+    }
 }
 
 impl SimpleLogStore {
@@ -302,11 +317,25 @@ impl LogStoreChunkRead for SimpleLogStore {
         self.chunk_store
             .get_chunks_by_tx_and_index_range(tx_seq, index_start, index_end)
     }
+
+    fn get_chunk_index_list(&self, tx_seq: u64) -> Result<Vec<usize>> {
+        // TODO: If the tx is completed, just read the top tree might be faster.
+        self.chunk_store.get_chunk_index_list(tx_seq)
+    }
 }
 
 impl LogStoreChunkWrite for SimpleLogStore {
     fn put_chunks(&self, tx_seq: u64, chunks: ChunkArray) -> Result<()> {
         self.chunk_store.put_chunks(tx_seq, chunks)
+    }
+
+    fn remove_all_chunks(&self, tx_seq: u64) -> Result<()> {
+        self.chunk_store.remove_all_chunks(tx_seq)?;
+        let mut tx = self.kvdb.transaction();
+        let key = tx_seq.to_be_bytes();
+        tx.delete(COL_TX_COMPLETED, &key);
+        tx.delete(COL_TX_MERKLE, &key);
+        self.kvdb.write(tx).map_err(Into::into)
     }
 }
 
@@ -378,15 +407,6 @@ impl LogStoreWrite for SimpleLogStore {
             .put(COL_TX_COMPLETED, &tx_seq.to_be_bytes(), &[0])?;
         // TODO: Mark the tx as completed.
         Ok(())
-    }
-
-    fn remove_all_chunks(&self, tx_seq: u64) -> Result<()> {
-        let mut tx = self.kvdb.transaction();
-        let key = tx_seq.to_be_bytes();
-        tx.delete(COL_TX_COMPLETED, &key);
-        tx.delete(COL_TX_MERKLE, &key);
-        tx.delete_prefix(COL_CHUNK, &key);
-        self.kvdb.write(tx).map_err(Into::into)
     }
 }
 
@@ -504,15 +524,6 @@ impl LogStoreRead for SimpleLogStore {
         self.kvdb
             .has_key(COL_TX_COMPLETED, &tx_seq.to_be_bytes())
             .map_err(Into::into)
-    }
-
-    fn get_chunk_index_list(&self, tx_seq: u64) -> Result<Vec<usize>> {
-        // TODO: Bench and compare with using rocksdb prefix_extractor.
-        // TODO: Only iterate the key without reading the value.
-        self.kvdb
-            .iter_with_prefix(COL_CHUNK, &tx_seq.to_be_bytes())
-            .map(|(k, _)| chunk_index(k.as_ref()))
-            .collect()
     }
 }
 
