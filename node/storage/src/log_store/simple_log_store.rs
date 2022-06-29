@@ -381,9 +381,12 @@ impl LogStoreWrite for SimpleLogStore {
     }
 
     fn remove_all_chunks(&self, tx_seq: u64) -> Result<()> {
-        self.kvdb
-            .delete_with_prefix(COL_CHUNK, &tx_seq.to_be_bytes())
-            .map_err(Into::into)
+        let mut tx = self.kvdb.transaction();
+        let key = tx_seq.to_be_bytes();
+        tx.delete(COL_TX_COMPLETED, &key);
+        tx.delete(COL_TX_MERKLE, &key);
+        tx.delete_prefix(COL_CHUNK, &key);
+        self.kvdb.write(tx).map_err(Into::into)
     }
 }
 
