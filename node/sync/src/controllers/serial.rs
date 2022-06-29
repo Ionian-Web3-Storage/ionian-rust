@@ -1,6 +1,7 @@
-use crate::SyncNetworkContext;
+use crate::{timestamp_now, SyncNetworkContext};
 use network::{
-    rpc::GetChunksRequest, NetworkMessage, PeerAction, PeerId, ReportSource, SyncId as RequestId,
+    rpc::GetChunksRequest, types::FindFile, NetworkMessage, PeerAction, PeerId, PubsubMessage,
+    ReportSource, SyncId as RequestId,
 };
 use rand::seq::IteratorRandom;
 use shared_types::{ChunkArray, ChunkArrayWithProof, CHUNK_SIZE};
@@ -92,6 +93,12 @@ impl SerialSyncController {
             ctx,
             store,
         }
+    }
+
+    fn publish(&mut self, msg: PubsubMessage) {
+        self.ctx.send(NetworkMessage::Publish {
+            messages: vec![msg],
+        });
     }
 
     pub fn is_failed(&self) -> bool {
@@ -282,8 +289,13 @@ impl SerialSyncController {
                         continue;
                     }
 
-                    // TODO（thegaram): trigger peer request
+                    // trigger find file request
                     info!(%self.tx_seq, "Requesting peers");
+
+                    self.publish(PubsubMessage::FindFile(FindFile {
+                        tx_seq: self.tx_seq,
+                        timestamp: timestamp_now(),
+                    }));
 
                     self.state = SyncState::FindingPeers {
                         since: Instant::now(),

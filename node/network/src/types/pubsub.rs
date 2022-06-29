@@ -2,14 +2,78 @@
 
 use crate::types::{GossipEncoding, GossipKind, GossipTopic};
 use crate::TopicHash;
-use libp2p::gossipsub::{DataTransform, GossipsubMessage, RawGossipsubMessage};
+use libp2p::{
+    gossipsub::{DataTransform, GossipsubMessage, RawGossipsubMessage},
+    Multiaddr,
+};
 use snap::raw::{decompress_len, Decoder, Encoder};
 use ssz::{Decode, Encode};
+use ssz_derive::{Decode, Encode};
 use std::io::{Error, ErrorKind};
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct WrappedMultiaddr(Multiaddr);
+
+impl From<Multiaddr> for WrappedMultiaddr {
+    fn from(addr: Multiaddr) -> Self {
+        WrappedMultiaddr(addr)
+    }
+}
+
+impl Into<Multiaddr> for WrappedMultiaddr {
+    fn into(self) -> Multiaddr {
+        self.0
+    }
+}
+
+impl ssz::Encode for WrappedMultiaddr {
+    fn is_ssz_fixed_len() -> bool {
+        false
+    }
+
+    fn ssz_bytes_len(&self) -> usize {
+        self.0.len()
+    }
+
+    fn ssz_append(&self, buf: &mut Vec<u8>) {
+        self.0.to_vec().ssz_append(buf)
+    }
+}
+
+impl ssz::Decode for WrappedMultiaddr {
+    fn is_ssz_fixed_len() -> bool {
+        false
+    }
+
+    fn from_ssz_bytes(bytes: &[u8]) -> Result<Self, ssz::DecodeError> {
+        // TODO(thegaram): limit length
+        match Multiaddr::try_from(bytes.to_vec()) {
+            Ok(addr) => Ok(WrappedMultiaddr(addr)),
+            Err(_) => Err(ssz::DecodeError::BytesInvalid(
+                "Cannot parse multiaddr".into(),
+            )),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Encode, Decode)]
+pub struct FindFile {
+    pub tx_seq: u64,
+    pub timestamp: u32,
+}
+
+#[derive(Debug, Clone, PartialEq, Encode, Decode)]
+pub struct AnnounceFile {
+    pub tx_seq: u64,
+    pub at: WrappedMultiaddr,
+    pub timestamp: u32,
+}
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum PubsubMessage {
     ExampleMessage(u64),
+    FindFile(FindFile),
+    AnnounceFile(AnnounceFile),
 }
 
 // Implements the `DataTransform` trait of gossipsub to employ snappy compression
@@ -83,6 +147,8 @@ impl PubsubMessage {
     pub fn kind(&self) -> GossipKind {
         match self {
             PubsubMessage::ExampleMessage(_) => GossipKind::Example,
+            PubsubMessage::FindFile(_) => GossipKind::FindFile,
+            PubsubMessage::AnnounceFile(_) => GossipKind::AnnounceFile,
         }
     }
 
@@ -104,6 +170,12 @@ impl PubsubMessage {
                     GossipKind::Example => Ok(PubsubMessage::ExampleMessage(
                         u64::from_ssz_bytes(data).map_err(|e| format!("{:?}", e))?,
                     )),
+                    GossipKind::FindFile => Ok(PubsubMessage::FindFile(
+                        FindFile::from_ssz_bytes(data).map_err(|e| format!("{:?}", e))?,
+                    )),
+                    GossipKind::AnnounceFile => Ok(PubsubMessage::AnnounceFile(
+                        AnnounceFile::from_ssz_bytes(data).map_err(|e| format!("{:?}", e))?,
+                    )),
                 }
             }
         }
@@ -118,6 +190,8 @@ impl PubsubMessage {
         // messages for us.
         match &self {
             PubsubMessage::ExampleMessage(data) => data.as_ssz_bytes(),
+            PubsubMessage::FindFile(data) => data.as_ssz_bytes(),
+            PubsubMessage::AnnounceFile(data) => data.as_ssz_bytes(),
         }
     }
 }
@@ -126,7 +200,13 @@ impl std::fmt::Display for PubsubMessage {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             PubsubMessage::ExampleMessage(msg) => {
-                write!(f, "Example message: {}", msg,)
+                write!(f, "Example message: {}", msg)
+            }
+            PubsubMessage::FindFile(msg) => {
+                write!(f, "FindFile message: {:?}", msg)
+            }
+            PubsubMessage::AnnounceFile(msg) => {
+                write!(f, "AnnounceFile message: {:?}", msg)
             }
         }
     }

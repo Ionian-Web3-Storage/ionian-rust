@@ -8,8 +8,10 @@ use strum::AsRefStr;
 pub const TOPIC_PREFIX: &str = "eth2";
 pub const SSZ_SNAPPY_ENCODING_POSTFIX: &str = "ssz_snappy";
 pub const EXAMPLE_TOPIC: &str = "example";
+pub const FIND_FILE_TOPIC: &str = "find_file";
+pub const ANNOUNCE_FILE_TOPIC: &str = "announce_file";
 
-pub const CORE_TOPICS: [GossipKind; 1] = [GossipKind::Example];
+pub const CORE_TOPICS: [GossipKind; 2] = [GossipKind::FindFile, GossipKind::AnnounceFile];
 
 /// A gossipsub topic which encapsulates the type of messages that should be sent and received over
 /// the pubsub protocol and the way the messages should be encoded.
@@ -27,6 +29,8 @@ pub struct GossipTopic {
 #[strum(serialize_all = "snake_case")]
 pub enum GossipKind {
     Example,
+    FindFile,
+    AnnounceFile,
 }
 
 /// The known encoding types for gossipsub messages.
@@ -67,6 +71,8 @@ impl GossipTopic {
 
             let kind = match topic_parts[2] {
                 EXAMPLE_TOPIC => GossipKind::Example,
+                FIND_FILE_TOPIC => GossipKind::FindFile,
+                ANNOUNCE_FILE_TOPIC => GossipKind::AnnounceFile,
                 _ => return Err(format!("Unknown topic: {}", topic)),
             };
 
@@ -91,6 +97,8 @@ impl From<GossipTopic> for String {
 
         let kind = match topic.kind {
             GossipKind::Example => EXAMPLE_TOPIC,
+            GossipKind::FindFile => FIND_FILE_TOPIC,
+            GossipKind::AnnounceFile => ANNOUNCE_FILE_TOPIC,
         };
 
         format!("/{}/{}/{}", TOPIC_PREFIX, kind, encoding)
@@ -105,6 +113,8 @@ impl std::fmt::Display for GossipTopic {
 
         let kind = match self.kind {
             GossipKind::Example => EXAMPLE_TOPIC,
+            GossipKind::FindFile => FIND_FILE_TOPIC,
+            GossipKind::AnnounceFile => ANNOUNCE_FILE_TOPIC,
         };
 
         write!(f, "/{}/{}/{}", TOPIC_PREFIX, kind, encoding)

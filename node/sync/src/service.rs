@@ -1,8 +1,7 @@
-use crate::controllers::SerialSyncController;
-use crate::SyncNetworkContext;
+use crate::{controllers::SerialSyncController, timestamp_now, SyncNetworkContext};
 use network::{
-    rpc::GetChunksRequest, rpc::RPCResponseErrorCode, NetworkGlobals, NetworkMessage, PeerId,
-    PeerRequestId, SyncId as RequestId,
+    rpc::GetChunksRequest, rpc::RPCResponseErrorCode, types::AnnounceFile, Multiaddr,
+    NetworkGlobals, NetworkMessage, PeerId, PeerRequestId, PubsubMessage, SyncId as RequestId,
 };
 use shared_types::{ChunkArrayWithProof, ChunkProof};
 use std::{collections::HashMap, sync::Arc};
@@ -44,6 +43,15 @@ pub enum SyncMessage {
     RpcError {
         peer_id: PeerId,
         request_id: RequestId,
+    },
+
+    FindFileGossip {
+        tx_seq: u64,
+    },
+
+    AnnounceFileGossip {
+        tx_seq: u64,
+        addr: Multiaddr,
     },
 }
 
@@ -122,6 +130,12 @@ impl SyncService {
         }
     }
 
+    fn publish(&mut self, msg: PubsubMessage) {
+        self.ctx.send(NetworkMessage::Publish {
+            messages: vec![msg],
+        });
+    }
+
     fn on_sync_msg(&mut self, msg: SyncMessage) {
         warn!("Sync received message {:?}", msg);
 
@@ -159,6 +173,14 @@ impl SyncService {
                 request_id,
             } => {
                 self.on_rpc_error(peer_id, request_id);
+            }
+
+            SyncMessage::FindFileGossip { tx_seq } => {
+                self.on_find_file_gossip(tx_seq);
+            }
+
+            SyncMessage::AnnounceFileGossip { tx_seq, addr } => {
+                self.on_announce_file_gossip(tx_seq, addr);
             }
         }
     }
@@ -321,6 +343,38 @@ impl SyncService {
         }
 
         controller.transition();
+    }
+
+    fn on_find_file_gossip(&mut self, tx_seq: u64) {
+        info!(%tx_seq, "Received FindFile gossip");
+
+        // check if we have it
+        // FIXME(thegaram): have a more approriate check
+        if !matches!(self.store.get_chunk_by_tx_and_index(tx_seq, 0), Ok(Some(_))) {
+            return;
+        }
+
+        // announce file
+        // TODO(thegaram): consider choosing a random listen address
+        let addr = match self.network_globals.listen_multiaddrs.read().first() {
+            Some(addr) => addr.clone(),
+            None => {
+                error!("No listen address available");
+                return;
+            }
+        };
+
+        self.publish(PubsubMessage::AnnounceFile(AnnounceFile {
+            tx_seq,
+            at: addr.into(),
+            timestamp: timestamp_now(),
+        }));
+    }
+
+    fn on_announce_file_gossip(&mut self, tx_seq: u64, addr: Multiaddr) {
+        info!(%tx_seq, %addr, "Received AnnounceFile gossip");
+
+        // TODO
     }
 
     fn on_heartbeat(&mut self) {

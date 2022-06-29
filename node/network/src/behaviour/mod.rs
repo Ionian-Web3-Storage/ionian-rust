@@ -100,6 +100,8 @@ pub enum BehaviourEvent<AppReqId: ReqId> {
         /// The gossipsub message id. Used when propagating blocks after validation.
         id: MessageId,
         /// The peer from which we received this message, not the peer that published it.
+        propagation_source: PeerId,
+        /// The peer who published and signed this message.
         source: PeerId,
         /// The topic that this message was sent on.
         topic: TopicHash,
@@ -203,7 +205,7 @@ impl<AppReqId: ReqId> Behaviour<AppReqId> {
         // If metrics are enabled for gossipsub build the configuration
         let snappy_transform = SnappyTransform::new(config.gs_config.max_transmit_size());
         let mut gossipsub = Gossipsub::new_with_subscription_filter_and_transform(
-            MessageAuthenticity::Anonymous,
+            MessageAuthenticity::Signed(local_key.clone()),
             config.gs_config.clone(),
             None, // gossipsub_metrics
             filter,
@@ -577,7 +579,8 @@ where
                         // Notify the network
                         self.add_event(BehaviourEvent::PubsubMessage {
                             id,
-                            source: propagation_source,
+                            propagation_source,
+                            source: gs_msg.source.expect("message is signed"), // TODO(thegaram): is this guaranteed?
                             topic: gs_msg.topic,
                             message: msg,
                         });

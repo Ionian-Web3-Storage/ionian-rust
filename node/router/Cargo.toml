@@ -4,8 +4,10 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+chrono = "0.4.19"
 error-chain = "0.12.4"
 futures = "0.3.21"
+lazy_static = "1.4.0"
 miner = { path = "../miner" }
 network = { path = "../network" }
 shared_types = { path = "../shared_types" }

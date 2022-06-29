@@ -1,13 +1,29 @@
 use futures::{channel::mpsc::Sender, prelude::*};
 use miner::MinerMessage;
 use network::{
-    rpc::StatusMessage, BehaviourEvent, Libp2pEvent, MessageId, NetworkGlobals, NetworkMessage,
-    PeerId, PeerRequestId, PubsubMessage, Request, RequestId, Response, Service as LibP2PService,
+    multiaddr::Protocol,
+    rpc::StatusMessage,
+    types::{AnnounceFile, FindFile},
+    BehaviourEvent, Libp2pEvent, MessageAcceptance, MessageId, Multiaddr, NetworkGlobals,
+    NetworkMessage, PeerId, PeerRequestId, PubsubMessage, Request, RequestId, Response,
+    Service as LibP2PService,
 };
 use std::sync::Arc;
 use sync::{SyncMessage, SyncSender};
 use task_executor::ShutdownReason;
 use tokio::sync::mpsc;
+
+fn duration_since(timestamp: u32) -> chrono::Duration {
+    let timestamp = i64::try_from(timestamp).expect("Should fit");
+    let timestamp = chrono::NaiveDateTime::from_timestamp(timestamp, 0);
+    let now = chrono::Utc::now().naive_utc();
+    now.signed_duration_since(timestamp)
+}
+
+lazy_static::lazy_static! {
+    pub static ref FIND_FILE_TIMEOUT: chrono::Duration = chrono::Duration::minutes(2);
+    pub static ref ANNOUNCE_FILE_TIMEOUT: chrono::Duration = chrono::Duration::minutes(2);
+}
 
 /// Service that handles communication between internal services and the libp2p service.
 pub struct RouterService {
@@ -127,11 +143,12 @@ impl RouterService {
                 }
                 BehaviourEvent::PubsubMessage {
                     id,
+                    propagation_source,
                     source,
                     message,
                     ..
                 } => {
-                    self.on_pubsub_message(source, id, message);
+                    self.on_pubsub_message(propagation_source, source, id, message);
                 }
             },
             Libp2pEvent::NewListenAddr(multiaddr) => {
@@ -279,14 +296,6 @@ impl RouterService {
         }
     }
 
-    fn on_pubsub_message(&mut self, source: PeerId, id: MessageId, message: PubsubMessage) {
-        match message {
-            PubsubMessage::ExampleMessage(data) => {
-                debug!(peer_id = %source, %id, ?data, "Received ExampleMessage gossip");
-            }
-        }
-    }
-
     fn send_status(&mut self, peer_id: PeerId) {
         let status_message = StatusMessage { data: 123 }; // dummy status message
         debug!(%peer_id, ?status_message, "Sending Status request");
@@ -318,6 +327,88 @@ impl RouterService {
 
     pub fn on_status_response(&mut self, peer_id: PeerId, status: StatusMessage) {
         debug!(%peer_id, ?status, "Received Status response");
+    }
+
+    fn on_pubsub_message(
+        &mut self,
+        propagation_source: PeerId,
+        source: PeerId,
+        id: MessageId,
+        message: PubsubMessage,
+    ) {
+        match message {
+            PubsubMessage::ExampleMessage(_) => {}
+            PubsubMessage::FindFile(msg) => self.on_find_file(propagation_source, id, msg),
+            PubsubMessage::AnnounceFile(msg) => {
+                self.on_announce_file(propagation_source, source, id, msg)
+            }
+        }
+    }
+
+    fn on_find_file(&mut self, propagation_source: PeerId, id: MessageId, msg: FindFile) {
+        info!(%propagation_source, %id, ?msg, "Received FindFile gossip");
+
+        let FindFile { tx_seq, timestamp } = msg;
+
+        // propagate gossip to peers
+        let validation_result = match duration_since(timestamp) {
+            d if d <= chrono::Duration::zero() => MessageAcceptance::Ignore,
+            d if d <= *FIND_FILE_TIMEOUT => MessageAcceptance::Accept,
+            _ => {
+                debug!("Timeout FindFile gossip, not propagating");
+                MessageAcceptance::Ignore
+            }
+        };
+
+        self.libp2p
+            .swarm
+            .behaviour_mut()
+            .report_message_validation_result(&propagation_source, id, validation_result);
+
+        // notify sync layer
+        self.send_to_sync(SyncMessage::FindFileGossip { tx_seq });
+    }
+
+    fn on_announce_file(
+        &mut self,
+        propagation_source: PeerId,
+        source: PeerId,
+        id: MessageId,
+        msg: AnnounceFile,
+    ) {
+        info!(%propagation_source, %source, %id, ?msg, "Received AnnounceFile gossip");
+
+        let AnnounceFile {
+            tx_seq,
+            at,
+            timestamp,
+        } = msg;
+
+        // propagate gossip to peers
+        let validation_result = match duration_since(timestamp) {
+            d if d <= chrono::Duration::zero() => MessageAcceptance::Ignore,
+            d if d <= *ANNOUNCE_FILE_TIMEOUT => MessageAcceptance::Accept,
+            _ => {
+                debug!("Timeout AnnounceFile gossip, not propagating");
+                MessageAcceptance::Ignore
+            }
+        };
+
+        self.libp2p
+            .swarm
+            .behaviour_mut()
+            .report_message_validation_result(&propagation_source, id, validation_result);
+
+        // add source peer id to address
+        // Note: Peer id (source) comes from the gossip message signature, so it
+        // is guaranteed to belong to the publisher, while the published address
+        // might belong to another node. By including peer id in the multiaddr,
+        // we will verify it when connecting to this peer.
+        let mut addr: Multiaddr = at.into();
+        addr.push(Protocol::P2p(source.into()));
+
+        // notify sync layer
+        self.send_to_sync(SyncMessage::AnnounceFileGossip { tx_seq, addr });
     }
 }
 

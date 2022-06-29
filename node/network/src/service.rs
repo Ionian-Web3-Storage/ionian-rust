@@ -171,9 +171,8 @@ impl<AppReqId: ReqId> Service<AppReqId> {
         };
 
         // helper closure for dialing peers
-        let mut dial = |mut multiaddr: Multiaddr| {
+        let mut dial = |multiaddr: Multiaddr| {
             // strip the p2p protocol if it exists
-            strip_peer_id(&mut multiaddr);
             match Swarm::dial(&mut swarm, multiaddr.clone()) {
                 Ok(()) => debug!(address = %multiaddr, "Dialing libp2p peer"),
                 Err(err) => {
@@ -221,7 +220,15 @@ impl<AppReqId: ReqId> Service<AppReqId> {
 
         let mut subscribed_topics: Vec<GossipKind> = vec![];
 
-        for topic_kind in &config.topics {
+        // for topic_kind in &config.topics {
+        //     if swarm.behaviour_mut().subscribe_kind(topic_kind.clone()) {
+        //         subscribed_topics.push(topic_kind.clone());
+        //     } else {
+        //         warn!(topic = ?topic_kind, "Could not subscribe to topic");
+        //     }
+        // }
+
+        for topic_kind in &crate::types::CORE_TOPICS {
             if swarm.behaviour_mut().subscribe_kind(topic_kind.clone()) {
                 subscribed_topics.push(topic_kind.clone());
             } else {
@@ -484,15 +491,4 @@ fn generate_noise_config(
         .into_authentic(identity_keypair)
         .expect("signing can fail only once during starting a node");
     noise::NoiseConfig::xx(static_dh_keys).into_authenticated()
-}
-
-/// For a multiaddr that ends with a peer id, this strips this suffix. Rust-libp2p
-/// only supports dialing to an address without providing the peer id.
-fn strip_peer_id(addr: &mut Multiaddr) {
-    let last = addr.pop();
-    match last {
-        Some(Protocol::P2p(_)) => {}
-        Some(other) => addr.push(other),
-        _ => {}
-    }
 }
