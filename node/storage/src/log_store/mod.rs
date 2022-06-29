@@ -33,7 +33,9 @@ pub trait LogStoreRead: LogStoreChunkRead {
         index_end: usize,
     ) -> Result<Option<ChunkArrayWithProof>>;
 
-    fn check_tx_completed(&self, seq: u64) -> Result<bool>;
+    fn check_tx_completed(&self, tx_seq: u64) -> Result<bool>;
+
+    fn get_chunk_index_list(&self, tx_seq: u64) -> Result<Vec<usize>>;
 }
 
 pub trait LogStoreChunkRead {
@@ -60,6 +62,8 @@ pub trait LogStoreWrite: LogStoreChunkWrite {
     /// This will return error if not all chunks are stored. But since this check can be expensive,
     /// the caller is supposed to track chunk statuses and call this after storing all the chunks.
     fn finalize_tx(&self, tx_seq: u64) -> Result<()>;
+    /// Delete all chunks of a tx.
+    fn remove_all_chunks(&self, tx_seq: u64) -> Result<()>;
 }
 
 pub trait LogStoreChunkWrite {

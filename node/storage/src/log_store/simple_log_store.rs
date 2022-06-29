@@ -223,6 +223,7 @@ impl LogStoreChunkRead for BatchChunkStore {
         if index_end <= index_start {
             bail!(Error::InvalidBatchBoundary);
         }
+        // TODO: Use range iteration of rocksdb.
         let mut data = Vec::with_capacity((index_end - index_start) * CHUNK_SIZE);
         for (index, end_index) in batch_iter(index_start, index_end, self.batch_size) {
             let batch_start_index = index / self.batch_size * self.batch_size;
@@ -367,6 +368,7 @@ impl LogStoreWrite for SimpleLogStore {
                 tx.data_merkle_root,
             )));
         }
+        // TODO: Bench and compare with storing the top_proof with the batch.
         self.kvdb.put(
             COL_TX_MERKLE,
             &tx_seq.to_be_bytes(),
@@ -376,6 +378,12 @@ impl LogStoreWrite for SimpleLogStore {
             .put(COL_TX_COMPLETED, &tx_seq.to_be_bytes(), &[0])?;
         // TODO: Mark the tx as completed.
         Ok(())
+    }
+
+    fn remove_all_chunks(&self, tx_seq: u64) -> Result<()> {
+        self.kvdb
+            .delete_with_prefix(COL_CHUNK, &tx_seq.to_be_bytes())
+            .map_err(Into::into)
     }
 }
 
@@ -489,10 +497,19 @@ impl LogStoreRead for SimpleLogStore {
         }
     }
 
-    fn check_tx_completed(&self, seq: u64) -> Result<bool> {
+    fn check_tx_completed(&self, tx_seq: u64) -> Result<bool> {
         self.kvdb
-            .has_key(COL_TX_COMPLETED, &seq.to_be_bytes())
+            .has_key(COL_TX_COMPLETED, &tx_seq.to_be_bytes())
             .map_err(Into::into)
+    }
+
+    fn get_chunk_index_list(&self, tx_seq: u64) -> Result<Vec<usize>> {
+        // TODO: Bench and compare with using rocksdb prefix_extractor.
+        // TODO: Only iterate the key without reading the value.
+        self.kvdb
+            .iter_with_prefix(COL_CHUNK, &tx_seq.to_be_bytes())
+            .map(|(k, _)| chunk_index(k.as_ref()))
+            .collect()
     }
 }
 
@@ -501,6 +518,14 @@ fn chunk_key(tx_seq: u64, index: usize) -> [u8; CHUNK_KEY_SIZE] {
     key[0..8].copy_from_slice(&tx_seq.to_be_bytes());
     key[8..12].copy_from_slice(&(index as u32).to_be_bytes());
     key
+}
+
+fn chunk_index(chunk_key: &[u8]) -> Result<usize> {
+    if chunk_key.len() != CHUNK_KEY_SIZE {
+        bail!("invalid chunk key size, len={}", chunk_key.len());
+    }
+    let index = u32::from_be_bytes(chunk_key[8..12].try_into()?);
+    Ok(index as usize)
 }
 
 fn chunk_proof(top_proof: &DataProof, sub_proof: &DataProof) -> Result<ChunkProof> {

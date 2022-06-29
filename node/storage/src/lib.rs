@@ -11,6 +11,18 @@ trait IonianKeyValueDB: KeyValueDB {
         tx.put(col, key, value);
         self.write(tx)
     }
+
+    fn delete(&self, col: u32, key: &[u8]) -> std::io::Result<()> {
+        let mut tx = self.transaction();
+        tx.delete(col, key);
+        self.write(tx)
+    }
+
+    fn delete_with_prefix(&self, col: u32, key_prefix: &[u8]) -> std::io::Result<()> {
+        let mut tx = self.transaction();
+        tx.delete_prefix(col, key_prefix);
+        self.write(tx)
+    }
 }
 
 impl<T: KeyValueDB> IonianKeyValueDB for T {}
