@@ -110,7 +110,7 @@ fn test_put_get() {
             chunk_with_proof.proof
         );
     }
-    for i in (0..chunk_count).step_by(store.chunk_batch_size) {
+    for i in (0..chunk_count).step_by(store.chunk_batch_size / 3) {
         let end = std::cmp::min(i + store.chunk_batch_size, chunk_count);
         let chunk_array_with_proof = store
             .get_chunks_with_proof_by_tx_and_index_range(tx.seq, i, end)

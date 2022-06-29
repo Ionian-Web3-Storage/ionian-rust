@@ -150,12 +150,67 @@ impl ChunkArrayWithProof {
             .chunks
             .last_chunk()
             .ok_or_else(|| anyhow!("no last chunk"))?;
-        self.end_proof.validate(
+        if !self.end_proof.validate(
             &end_chunk,
             root,
             self.chunks.start_index as usize + self.chunks.data.len() / CHUNK_SIZE - 1,
             total_chunk_count,
-        )
+        )? {
+            return Ok(false);
+        }
+        // The left subtree if full, so the start proof length is no less than the end proof.
+        let tree_depth = self.start_proof.path.len();
+        let mut children_layer: Vec<_> = self
+            .chunks
+            .data
+            .chunks(CHUNK_SIZE)
+            .map(|chunk_data| {
+                let chunk = Chunk(chunk_data.try_into().unwrap());
+                let mut a = RawLeafSha3Algorithm::default();
+                chunk.hash(&mut a);
+                a.hash()
+            })
+            .collect();
+        let mut right_most_proof_index = 0;
+        for depth in 0..tree_depth {
+            let mut parent_layer = Vec::new();
+            let start_index = if !self.start_proof.path[depth] {
+                // If the left-most node is the right child, its sibling is not within the data range and should be retrieved from the proof.
+                let mut a = RawLeafSha3Algorithm::default();
+                let parent = a.node(self.start_proof.lemma[depth + 1], children_layer[0]);
+                parent_layer.push(parent);
+                1
+            } else {
+                // The left-most node is the left child, its sibling is just the next child.
+                0
+            };
+            let mut iter = children_layer[start_index..].chunks_exact(2);
+            while let Some([left, right]) = iter.next() {
+                let mut a = RawLeafSha3Algorithm::default();
+                parent_layer.push(a.node(*left, *right))
+            }
+            if let [right_most] = iter.remainder() {
+                if self.end_proof.path[right_most_proof_index] {
+                    let mut a = RawLeafSha3Algorithm::default();
+                    parent_layer.push(a.node(
+                        *right_most,
+                        self.end_proof.lemma[right_most_proof_index + 1],
+                    ));
+                    right_most_proof_index += 1;
+                } else {
+                    parent_layer.push(*right_most);
+                }
+            } else {
+                right_most_proof_index += 1;
+            }
+            children_layer = parent_layer;
+        }
+        assert_eq!(children_layer.len(), 1);
+        if children_layer[0] != root.0 {
+            return Ok(false);
+        }
+
+        Ok(true)
     }
 }
 
