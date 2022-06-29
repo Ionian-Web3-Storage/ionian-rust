@@ -20,9 +20,9 @@ impl From<Multiaddr> for WrappedMultiaddr {
     }
 }
 
-impl Into<Multiaddr> for WrappedMultiaddr {
-    fn into(self) -> Multiaddr {
-        self.0
+impl From<WrappedMultiaddr> for Multiaddr {
+    fn from(addr: WrappedMultiaddr) -> Self {
+        addr.0
     }
 }
 
