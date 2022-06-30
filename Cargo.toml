@@ -9,8 +9,10 @@ members = [
     "common/task_executor",
     "common/ionian_version",
     "common/unused_port",
+    "common/cfx_rpc_client",
 
     "node",
+    "node/log_entry_sync",
     "node/miner",
     "node/network",
     "node/router",
