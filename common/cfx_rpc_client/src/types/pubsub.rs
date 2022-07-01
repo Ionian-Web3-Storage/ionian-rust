@@ -1,7 +1,7 @@
-use crate::types::call::Bytes;
 use crate::types::variadic_value::VariadicValue;
 use crate::types::RpcAddress;
 use ethereum_types::{H256, U256, U64};
+use ethers::prelude::Bytes;
 use serde::de::{Error, Visitor};
 use serde::{self, Deserialize, Deserializer, Serialize, Serializer};
 use std::fmt;
