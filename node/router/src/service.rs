@@ -8,7 +8,7 @@ use network::{
     NetworkMessage, PeerId, PeerRequestId, PubsubMessage, Request, RequestId, Response,
     Service as LibP2PService,
 };
-use std::sync::Arc;
+use std::{ops::Neg, sync::Arc};
 use sync::{SyncMessage, SyncSender};
 use task_executor::ShutdownReason;
 use tokio::sync::mpsc;
@@ -23,6 +23,7 @@ fn duration_since(timestamp: u32) -> chrono::Duration {
 lazy_static::lazy_static! {
     pub static ref FIND_FILE_TIMEOUT: chrono::Duration = chrono::Duration::minutes(2);
     pub static ref ANNOUNCE_FILE_TIMEOUT: chrono::Duration = chrono::Duration::minutes(2);
+    pub static ref TOLERABLE_DRIFT: chrono::Duration = chrono::Duration::seconds(5);
 }
 
 /// Service that handles communication between internal services and the libp2p service.
@@ -351,19 +352,27 @@ impl RouterService {
         let FindFile { tx_seq, timestamp } = msg;
 
         // propagate gossip to peers
-        let validation_result = match duration_since(timestamp) {
-            d if d <= chrono::Duration::zero() => MessageAcceptance::Ignore,
-            d if d <= *FIND_FILE_TIMEOUT => MessageAcceptance::Accept,
-            _ => {
-                debug!("Timeout FindFile gossip, not propagating");
-                MessageAcceptance::Ignore
-            }
-        };
+        let d = duration_since(timestamp);
+
+        if d < TOLERABLE_DRIFT.neg() || d > *FIND_FILE_TIMEOUT {
+            debug!(%timestamp, "Invalid timestamp, ignoring FindFile message");
+
+            self.libp2p
+                .swarm
+                .behaviour_mut()
+                .report_message_validation_result(
+                    &propagation_source,
+                    id,
+                    MessageAcceptance::Ignore,
+                );
+
+            return;
+        }
 
         self.libp2p
             .swarm
             .behaviour_mut()
-            .report_message_validation_result(&propagation_source, id, validation_result);
+            .report_message_validation_result(&propagation_source, id, MessageAcceptance::Accept);
 
         // notify sync layer
         self.send_to_sync(SyncMessage::FindFileGossip { tx_seq });
@@ -385,19 +394,27 @@ impl RouterService {
         } = msg;
 
         // propagate gossip to peers
-        let validation_result = match duration_since(timestamp) {
-            d if d <= chrono::Duration::zero() => MessageAcceptance::Ignore,
-            d if d <= *ANNOUNCE_FILE_TIMEOUT => MessageAcceptance::Accept,
-            _ => {
-                debug!("Timeout AnnounceFile gossip, not propagating");
-                MessageAcceptance::Ignore
-            }
-        };
+        let d = duration_since(timestamp);
+
+        if d < TOLERABLE_DRIFT.neg() || d > *ANNOUNCE_FILE_TIMEOUT {
+            debug!(%timestamp, "Invalid timestamp, ignoring AnnounceFile message");
+
+            self.libp2p
+                .swarm
+                .behaviour_mut()
+                .report_message_validation_result(
+                    &propagation_source,
+                    id,
+                    MessageAcceptance::Ignore,
+                );
+
+            return;
+        }
 
         self.libp2p
             .swarm
             .behaviour_mut()
-            .report_message_validation_result(&propagation_source, id, validation_result);
+            .report_message_validation_result(&propagation_source, id, MessageAcceptance::Accept);
 
         // add source peer id to address
         // Note: Peer id (source) comes from the gossip message signature, so it
