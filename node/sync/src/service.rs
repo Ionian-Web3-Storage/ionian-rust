@@ -15,8 +15,7 @@ pub type SyncSender = channel::Sender<SyncMessage, SyncRequest, SyncResponse>;
 
 #[derive(Debug)]
 pub enum SyncMessage {
-    AddPeer {
-        tx_seq: u64,
+    PeerConnected {
         peer_id: PeerId,
     },
 
@@ -52,6 +51,7 @@ pub enum SyncMessage {
 
     AnnounceFileGossip {
         tx_seq: u64,
+        peer_id: PeerId,
         addr: Multiaddr,
     },
 }
@@ -143,8 +143,8 @@ impl SyncService {
         warn!("Sync received message {:?}", msg);
 
         match msg {
-            SyncMessage::AddPeer { tx_seq, peer_id } => {
-                self.on_add_peer(tx_seq, peer_id);
+            SyncMessage::PeerConnected { peer_id } => {
+                self.on_peer_connected(peer_id);
             }
 
             SyncMessage::PeerDisconnected { peer_id } => {
@@ -183,8 +183,12 @@ impl SyncService {
                 self.on_find_file_gossip(tx_seq).await;
             }
 
-            SyncMessage::AnnounceFileGossip { tx_seq, addr } => {
-                self.on_announce_file_gossip(tx_seq, addr);
+            SyncMessage::AnnounceFileGossip {
+                tx_seq,
+                peer_id,
+                addr,
+            } => {
+                self.on_announce_file_gossip(tx_seq, peer_id, addr);
             }
         }
     }
@@ -202,17 +206,13 @@ impl SyncService {
         }
     }
 
-    fn on_add_peer(&mut self, tx_seq: u64, peer_id: PeerId) {
-        info!("Adding new peer {peer_id:?} for tx_seq={tx_seq}");
+    fn on_peer_connected(&mut self, peer_id: PeerId) {
+        info!(%peer_id, "Peer connected");
 
-        match self.controllers.get_mut(&tx_seq) {
-            Some(controller) => {
-                controller.on_peer_connected(peer_id);
-                controller.transition();
-            }
-            None => {
-                warn!("Received new peer {peer_id:?} for non-existent controller tx_seq={tx_seq}");
-            }
+        for controller in self.controllers.values_mut() {
+            // TODO(thegaram): only update controllers that need it?
+            controller.on_peer_connected(peer_id);
+            controller.transition();
         }
     }
 
@@ -220,7 +220,7 @@ impl SyncService {
         info!("Peer {peer_id:?} disconnected");
 
         for controller in self.controllers.values_mut() {
-            controller.on_peer_disconnected(&peer_id);
+            controller.on_peer_disconnected(peer_id);
             controller.transition();
         }
     }
@@ -379,10 +379,13 @@ impl SyncService {
         }));
     }
 
-    fn on_announce_file_gossip(&mut self, tx_seq: u64, addr: Multiaddr) {
+    fn on_announce_file_gossip(&mut self, tx_seq: u64, peer_id: PeerId, addr: Multiaddr) {
         info!(%tx_seq, %addr, "Received AnnounceFile gossip");
 
-        // TODO
+        if let Some(controller) = self.controllers.get_mut(&tx_seq) {
+            controller.on_peer_found(peer_id, addr);
+            controller.transition();
+        }
     }
 
     fn on_heartbeat(&mut self) {

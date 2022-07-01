@@ -6,7 +6,7 @@ use network::{
     types::{AnnounceFile, FindFile},
     BehaviourEvent, Libp2pEvent, MessageAcceptance, MessageId, Multiaddr, NetworkGlobals,
     NetworkMessage, PeerId, PeerRequestId, PubsubMessage, Request, RequestId, Response,
-    Service as LibP2PService,
+    Service as LibP2PService, Swarm,
 };
 use std::{ops::Neg, sync::Arc};
 use sync::{SyncMessage, SyncSender};
@@ -230,15 +230,27 @@ impl RouterService {
                 reason,
                 source,
             } => self.libp2p.goodbye_peer(&peer_id, reason, source),
+            NetworkMessage::DialPeer { address } => {
+                // TODO(thegaram): do not dial if peer is already connected
+
+                match Swarm::dial(&mut self.libp2p.swarm, address.clone()) {
+                    Ok(()) => debug!(%address, "Dialing libp2p peer"),
+                    Err(err) => {
+                        // TODO(thegaram): consider sending a dial failed message
+                        debug!(%address, error = ?err, "Could not connect to peer")
+                    }
+                };
+            }
         }
     }
 
     fn on_peer_connected(&mut self, peer_id: PeerId) {
         self.send_status(peer_id);
+        self.send_to_sync(SyncMessage::PeerConnected { peer_id });
     }
 
-    fn on_peer_disconnected(&mut self, _peer_id: PeerId) {
-        // TODO
+    fn on_peer_disconnected(&mut self, peer_id: PeerId) {
+        self.send_to_sync(SyncMessage::PeerDisconnected { peer_id });
     }
 
     fn on_rpc_request(&mut self, peer_id: PeerId, request_id: PeerRequestId, request: Request) {
@@ -421,11 +433,16 @@ impl RouterService {
         // is guaranteed to belong to the publisher, while the published address
         // might belong to another node. By including peer id in the multiaddr,
         // we will verify it when connecting to this peer.
+        let peer_id = source;
         let mut addr: Multiaddr = at.into();
-        addr.push(Protocol::P2p(source.into()));
+        addr.push(Protocol::P2p(peer_id.into()));
 
         // notify sync layer
-        self.send_to_sync(SyncMessage::AnnounceFileGossip { tx_seq, addr });
+        self.send_to_sync(SyncMessage::AnnounceFileGossip {
+            tx_seq,
+            peer_id,
+            addr,
+        });
     }
 }
 

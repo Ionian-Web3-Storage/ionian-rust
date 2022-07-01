@@ -137,4 +137,6 @@ pub enum NetworkMessage {
         reason: rpc::GoodbyeReason,
         source: ReportSource,
     },
+    /// Start dialing a new peer.
+    DialPeer { address: Multiaddr },
 }
