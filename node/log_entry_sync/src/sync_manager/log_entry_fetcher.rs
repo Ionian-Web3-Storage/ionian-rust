@@ -26,7 +26,7 @@ impl LogEntryFetcher {
         Ok(Self { contract })
     }
 
-    async fn num_log_entries(&self) -> Result<u64> {
+    pub async fn num_log_entries(&self) -> Result<u64> {
         let response = self
             .contract
             .num_log_entries()
@@ -36,7 +36,7 @@ impl LogEntryFetcher {
         Ok(response.as_u64())
     }
 
-    async fn entry_at(&self, offset: u64, limit: Option<usize>) -> Result<Vec<Transaction>> {
+    pub async fn entry_at(&self, offset: u64, limit: Option<usize>) -> Result<Vec<Transaction>> {
         let response = self
             .contract
             .get_log_entries(offset.into(), limit.unwrap_or(1).into())
