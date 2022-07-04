@@ -10,6 +10,7 @@ network = { path = "../network" }
 rand = "0.8.5"
 shared_types = { path = "../shared_types" }
 storage = { path = "../storage" }
+storage-async = { path = "../storage-async" }
 task_executor = { path = "../../common/task_executor" }
 tokio = { version = "1.19.2", features = ["full"] }
 tracing = "0.1.35"

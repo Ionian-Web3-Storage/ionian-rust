@@ -10,7 +10,7 @@ use std::{
     sync::Arc,
     time::{Duration, Instant},
 };
-use storage::log_store::Store;
+use storage_async::Store;
 
 const CHUNK_BATCH_SIZE: usize = 1024;
 
@@ -73,7 +73,7 @@ pub struct SerialSyncController {
     ctx: Arc<SyncNetworkContext>,
 
     /// Log and transaction storage.
-    store: Arc<dyn Store>,
+    store: Store,
 }
 
 impl SerialSyncController {
@@ -81,7 +81,7 @@ impl SerialSyncController {
         tx_seq: u64,
         num_chunks: usize,
         ctx: Arc<SyncNetworkContext>,
-        store: Arc<dyn Store>,
+        store: Store,
     ) -> Self {
         SerialSyncController {
             tx_seq,
@@ -181,7 +181,7 @@ impl SerialSyncController {
         }
     }
 
-    pub fn on_response(&mut self, from_peer_id: PeerId, response: ChunkArrayWithProof) {
+    pub async fn on_response(&mut self, from_peer_id: PeerId, response: ChunkArrayWithProof) {
         // execute cheap validation steps
         let (_from_chunk, to_chunk) = match self.state {
             SyncState::Downloading {
@@ -232,7 +232,7 @@ impl SerialSyncController {
 
         // store in db
         // FIXME(thegaram): do this in worker thread
-        let result = self.store.put_chunks(self.tx_seq, response.chunks);
+        let result = self.store.put_chunks(self.tx_seq, response.chunks).await;
 
         // unexpected DB error while storing chunks
         if let Err(e) = result {
