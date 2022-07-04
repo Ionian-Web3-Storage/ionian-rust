@@ -20,12 +20,11 @@ use std::path::Path;
 use std::sync::Arc;
 
 const COL_TX: u32 = 0;
-const COL_TX_HASH_INDEX: u32 = 1;
-const COL_TX_DATA_ROOT_INDEX: u32 = 2;
-const COL_TX_MERKLE: u32 = 3;
-const COL_CHUNK: u32 = 4;
-const COL_TX_COMPLETED: u32 = 5;
-const COL_NUM: u32 = 6;
+const COL_TX_DATA_ROOT_INDEX: u32 = 1;
+const COL_TX_MERKLE: u32 = 2;
+const COL_CHUNK: u32 = 3;
+const COL_TX_COMPLETED: u32 = 4;
+const COL_NUM: u32 = 5;
 // A chunk key is the concatenation of tx_seq(u64) and start_index(u32)
 const CHUNK_KEY_SIZE: usize = 8 + 4;
 const CHUNK_BATCH_SIZE: usize = 1024;
