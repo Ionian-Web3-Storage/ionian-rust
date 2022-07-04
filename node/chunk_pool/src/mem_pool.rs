@@ -72,14 +72,16 @@ impl MemoryChunkPool {
         }
 
         // Suppose to add chunks in sequence.
-        if let Some(file) = inner.files.get(&root) {
-            if file.next_index != start_index {
-                bail!(anyhow!(
-                    "chunk index not in sequence, expected = {}, actual = {}",
-                    file.next_index,
-                    start_index
-                ));
-            }
+        let next_index = match inner.files.get(&root) {
+            Some(file) => file.next_index,
+            None => 0,
+        };
+        if next_index != start_index {
+            bail!(anyhow!(
+                "chunk index not in sequence, expected = {}, actual = {}",
+                next_index,
+                start_index
+            ));
         }
 
         inner.total_chunks += num_chunks;
@@ -89,6 +91,7 @@ impl MemoryChunkPool {
         // TODO(qhz): try to update `total_chunks` from db for the 1st chunk,
         // in case that client do not upload chunks to storage node timly.
 
+        // TODO(qhz): reduce the memory reallocation.
         file.data.extend_from_slice(&chunks);
         file.next_index += num_chunks;
 

@@ -129,14 +129,14 @@ impl RpcServerImpl {
     fn chunk_pool(&self) -> Result<&Arc<MemoryChunkPool>, jsonrpsee::core::Error> {
         match &self.ctx.chunk_pool {
             Some(pool) => Ok(pool),
-            None => Err(error::internal_error("chunk pool is not initizalied")),
+            None => Err(error::internal_error("chunk pool is not initialized")),
         }
     }
 
     fn log_store(&self) -> Result<&Arc<dyn Store>, jsonrpsee::core::Error> {
         match &self.ctx.log_store {
             Some(store) => Ok(store),
-            None => Err(error::internal_error("log store is not initizalied")),
+            None => Err(error::internal_error("log store is not initialized")),
         }
     }
 }

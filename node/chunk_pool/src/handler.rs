@@ -2,7 +2,7 @@ use super::mem_pool::{MemoryCachedFile, MemoryChunkPool};
 use anyhow::Result;
 use shared_types::{ChunkArray, DataRoot, CHUNK_SIZE};
 use std::sync::Arc;
-use storage::log_store::{LogStoreChunkWrite, SimpleLogStore};
+use storage::log_store::Store;
 use tokio::sync::mpsc::UnboundedReceiver;
 
 const SEGMENT_DATA_SIZE: usize = super::NUM_CHUNKS_PER_SEGMENT * CHUNK_SIZE;
@@ -12,14 +12,14 @@ const SEGMENT_DATA_SIZE: usize = super::NUM_CHUNKS_PER_SEGMENT * CHUNK_SIZE;
 pub struct ChunkPoolHandler {
     receiver: UnboundedReceiver<DataRoot>,
     mem_pool: Arc<MemoryChunkPool>,
-    log_store: Arc<SimpleLogStore>,
+    log_store: Arc<dyn Store>,
 }
 
 impl ChunkPoolHandler {
     pub(crate) fn new(
         receiver: UnboundedReceiver<DataRoot>,
         mem_pool: Arc<MemoryChunkPool>,
-        log_store: Arc<SimpleLogStore>,
+        log_store: Arc<dyn Store>,
     ) -> Self {
         ChunkPoolHandler {
             receiver,
@@ -52,6 +52,7 @@ impl ChunkPoolHandler {
                 break;
             }
 
+            // TODO(qhz): avoid frequent memory reallocation.
             let remain = data.split_off(SEGMENT_DATA_SIZE);
             self.persist_segment(&root, data, chunk_offset)?;
 

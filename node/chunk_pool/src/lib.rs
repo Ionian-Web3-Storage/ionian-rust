@@ -9,7 +9,7 @@ use std::sync::Arc;
 pub const NUM_CHUNKS_PER_SEGMENT: usize = 1024;
 
 pub fn unbounded(
-    log_store: Arc<storage::log_store::SimpleLogStore>,
+    log_store: Arc<dyn storage::log_store::Store>,
 ) -> (Arc<MemoryChunkPool>, ChunkPoolHandler) {
     let (sender, receiver) = tokio::sync::mpsc::unbounded_channel();
 
