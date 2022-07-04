@@ -1,4 +1,4 @@
-use shared_types::{Chunk, ChunkArray, ChunkArrayWithProof, ChunkWithProof, Transaction};
+use shared_types::{Chunk, ChunkArray, ChunkArrayWithProof, ChunkWithProof, DataRoot, Transaction};
 
 use crate::error::Result;
 
@@ -14,6 +14,9 @@ mod tests;
 pub trait LogStoreRead: LogStoreChunkRead {
     /// Get a transaction by its global log sequence number.
     fn get_tx_by_seq_number(&self, seq: u64) -> Result<Option<Transaction>>;
+
+    /// Get a transaction by the data root of its data.
+    fn get_tx_seq_by_data_root(&self, data_root: &DataRoot) -> Result<Option<u64>>;
 
     fn get_chunk_with_proof_by_tx_and_index(
         &self,
@@ -40,6 +43,19 @@ pub trait LogStoreChunkRead {
     fn get_chunks_by_tx_and_index_range(
         &self,
         tx_seq: u64,
+        index_start: usize,
+        index_end: usize,
+    ) -> Result<Option<ChunkArray>>;
+
+    fn get_chunk_by_data_root_and_index(
+        &self,
+        data_root: &DataRoot,
+        index: usize,
+    ) -> Result<Option<Chunk>>;
+
+    fn get_chunks_by_data_root_and_index_range(
+        &self,
+        data_root: &DataRoot,
         index_start: usize,
         index_end: usize,
     ) -> Result<Option<ChunkArray>>;

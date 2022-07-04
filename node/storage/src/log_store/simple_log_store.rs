@@ -21,10 +21,11 @@ use std::sync::Arc;
 
 const COL_TX: u32 = 0;
 const COL_TX_HASH_INDEX: u32 = 1;
-const COL_TX_MERKLE: u32 = 2;
-const COL_CHUNK: u32 = 3;
-const COL_TX_COMPLETED: u32 = 4;
-const COL_NUM: u32 = 5;
+const COL_TX_DATA_ROOT_INDEX: u32 = 2;
+const COL_TX_MERKLE: u32 = 3;
+const COL_CHUNK: u32 = 4;
+const COL_TX_COMPLETED: u32 = 5;
+const COL_NUM: u32 = 6;
 // A chunk key is the concatenation of tx_seq(u64) and start_index(u32)
 const CHUNK_KEY_SIZE: usize = 8 + 4;
 const CHUNK_BATCH_SIZE: usize = 1024;
@@ -261,6 +262,23 @@ impl LogStoreChunkRead for BatchChunkStore {
         }))
     }
 
+    fn get_chunk_by_data_root_and_index(
+        &self,
+        _data_root: &DataRoot,
+        _index: usize,
+    ) -> Result<Option<Chunk>> {
+        unreachable!("chunk store only index chunks by tx_seq")
+    }
+
+    fn get_chunks_by_data_root_and_index_range(
+        &self,
+        _data_root: &DataRoot,
+        _index_start: usize,
+        _index_end: usize,
+    ) -> Result<Option<ChunkArray>> {
+        unreachable!("chunk store only index chunks by tx_seq")
+    }
+
     fn get_chunk_index_list(&self, tx_seq: u64) -> Result<Vec<usize>> {
         // TODO: Bench and compare with using rocksdb prefix_extractor.
         // TODO: Only iterate the key without reading the value.
@@ -318,6 +336,25 @@ impl LogStoreChunkRead for SimpleLogStore {
             .get_chunks_by_tx_and_index_range(tx_seq, index_start, index_end)
     }
 
+    fn get_chunk_by_data_root_and_index(
+        &self,
+        data_root: &DataRoot,
+        index: usize,
+    ) -> Result<Option<Chunk>> {
+        let tx_seq = try_option!(self.get_tx_seq_by_data_root(data_root)?);
+        self.get_chunk_by_tx_and_index(tx_seq, index)
+    }
+
+    fn get_chunks_by_data_root_and_index_range(
+        &self,
+        data_root: &DataRoot,
+        index_start: usize,
+        index_end: usize,
+    ) -> Result<Option<ChunkArray>> {
+        let tx_seq = try_option!(self.get_tx_seq_by_data_root(data_root)?);
+        self.get_chunks_by_tx_and_index_range(tx_seq, index_start, index_end)
+    }
+
     fn get_chunk_index_list(&self, tx_seq: u64) -> Result<Vec<usize>> {
         // TODO: If the tx is completed, just read the top tree might be faster.
         self.chunk_store.get_chunk_index_list(tx_seq)
@@ -343,6 +380,16 @@ impl LogStoreWrite for SimpleLogStore {
     fn put_tx(&self, tx: Transaction) -> Result<()> {
         let mut db_tx = self.kvdb.transaction();
         db_tx.put(COL_TX, &tx.seq.to_be_bytes(), &tx.as_ssz_bytes());
+        if self
+            .get_tx_seq_by_data_root(&tx.data_merkle_root)?
+            .is_none()
+        {
+            db_tx.put(
+                COL_TX_DATA_ROOT_INDEX,
+                tx.data_merkle_root.as_bytes(),
+                &tx.seq.to_be_bytes(),
+            );
+        }
         self.kvdb.write(db_tx).map_err(Into::into)
     }
 
@@ -414,6 +461,13 @@ impl LogStoreRead for SimpleLogStore {
         let value = try_option!(self.kvdb.get(COL_TX, &seq.to_be_bytes())?);
         let tx = Transaction::from_ssz_bytes(&value).map_err(Error::from)?;
         Ok(Some(tx))
+    }
+
+    fn get_tx_seq_by_data_root(&self, data_root: &DataRoot) -> Result<Option<u64>> {
+        let value = try_option!(self
+            .kvdb
+            .get(COL_TX_DATA_ROOT_INDEX, data_root.as_bytes())?);
+        Ok(Some(decode_tx_seq(&value)?))
     }
 
     fn get_chunk_with_proof_by_tx_and_index(
@@ -560,4 +614,10 @@ fn batch_iter(start: usize, end: usize, batch_size: usize) -> Vec<(usize, usize)
         list.push((batch_start, batch_end));
     }
     list
+}
+
+fn decode_tx_seq(data: &[u8]) -> Result<u64> {
+    Ok(u64::from_be_bytes(
+        data.try_into().map_err(|e| anyhow!("{:?}", e))?,
+    ))
 }
