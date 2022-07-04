@@ -4592,6 +4592,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "storage-async"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "shared_types",
+ "storage",
+ "task_executor",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "store"
 version = "0.1.0"
 dependencies = [
@@ -4653,6 +4665,7 @@ dependencies = [
  "rand 0.8.5",
  "shared_types",
  "storage",
+ "storage-async",
  "task_executor",
  "tokio",
  "tracing",

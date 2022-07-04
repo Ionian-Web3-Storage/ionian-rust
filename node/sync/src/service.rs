@@ -6,7 +6,8 @@ use network::{
 };
 use shared_types::{ChunkArrayWithProof, ChunkProof};
 use std::{collections::HashMap, sync::Arc};
-use storage::log_store::Store;
+use storage::log_store::Store as LogStore;
+use storage_async::Store;
 use tokio::sync::mpsc;
 
 const HEARTBEAT_INTERVAL_SEC: u64 = 5;
@@ -69,7 +70,7 @@ pub struct SyncService {
     network_globals: Arc<NetworkGlobals>,
 
     /// Log and transaction storage.
-    store: Arc<dyn Store>,
+    store: Store,
 
     /// A collection of file sync controllers.
     controllers: HashMap<u64, SerialSyncController>,
@@ -83,12 +84,14 @@ impl SyncService {
         executor: task_executor::TaskExecutor,
         network_send: mpsc::UnboundedSender<NetworkMessage>,
         network_globals: Arc<NetworkGlobals>,
-        store: Arc<dyn Store>,
+        store: Arc<dyn LogStore>,
     ) -> SyncSender {
         let (sync_send, sync_recv) = channel::Channel::unbounded();
 
         let heartbeat =
             tokio::time::interval(tokio::time::Duration::from_secs(HEARTBEAT_INTERVAL_SEC));
+
+        let store = Store::new(store, executor.clone());
 
         let mut sync = SyncService {
             msg_recv: sync_recv,
@@ -111,7 +114,7 @@ impl SyncService {
                 // received sync message
                 Some(msg) = self.msg_recv.recv() => {
                     match msg {
-                        channel::Message::Notification(msg) => self.on_sync_msg(msg),
+                        channel::Message::Notification(msg) => self.on_sync_msg(msg).await,
                         channel::Message::Request(req, sender) => self.on_sync_request(req, sender),
                     }
                 }
@@ -122,7 +125,7 @@ impl SyncService {
         }
     }
 
-    fn on_sync_msg(&mut self, msg: SyncMessage) {
+    async fn on_sync_msg(&mut self, msg: SyncMessage) {
         warn!("Sync received message {:?}", msg);
 
         match msg {
@@ -139,7 +142,8 @@ impl SyncService {
                 peer_id,
                 request,
             } => {
-                self.on_get_chunks_request(peer_id, request_id, request);
+                self.on_get_chunks_request(peer_id, request_id, request)
+                    .await;
             }
 
             SyncMessage::ChunksResponse {
@@ -147,7 +151,7 @@ impl SyncService {
                 request_id,
                 response,
             } => {
-                self.on_chunks_response(peer_id, request_id, response);
+                self.on_chunks_response(peer_id, request_id, response).await;
             }
 
             SyncMessage::StartSyncFile { tx_seq, num_chunks } => {
@@ -199,7 +203,7 @@ impl SyncService {
         }
     }
 
-    fn on_get_chunks_request(
+    async fn on_get_chunks_request(
         &mut self,
         peer_id: PeerId,
         request_id: PeerRequestId,
@@ -226,6 +230,7 @@ impl SyncService {
                 request.index_start as usize,
                 request.index_end as usize,
             )
+            .await
             .map(|maybe_chunks| {
                 maybe_chunks.map(|chunks| ChunkArrayWithProof {
                     chunks,
@@ -265,7 +270,7 @@ impl SyncService {
         }
     }
 
-    fn on_chunks_response(
+    async fn on_chunks_response(
         &mut self,
         peer_id: PeerId,
         request_id: RequestId,
@@ -279,7 +284,7 @@ impl SyncService {
 
         match self.controllers.get_mut(&tx_seq) {
             Some(controller) => {
-                controller.on_response(peer_id, response);
+                controller.on_response(peer_id, response).await;
                 controller.transition();
             }
             None => {
