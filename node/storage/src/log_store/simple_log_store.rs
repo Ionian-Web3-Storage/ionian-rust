@@ -381,11 +381,16 @@ impl LogStoreWrite for SimpleLogStore {
         let mut db_tx = self.kvdb.transaction();
         db_tx.put(COL_TX, &tx.seq.to_be_bytes(), &tx.as_ssz_bytes());
         db_tx.put(COL_TX_HASH_INDEX, tx.hash.as_bytes(), &tx.seq.to_be_bytes());
-        db_tx.put(
-            COL_TX_DATA_ROOT_INDEX,
-            tx.data_merkle_root.as_bytes(),
-            &tx.seq.to_be_bytes(),
-        );
+        if self
+            .get_tx_seq_by_data_root(&tx.data_merkle_root)?
+            .is_none()
+        {
+            db_tx.put(
+                COL_TX_DATA_ROOT_INDEX,
+                tx.data_merkle_root.as_bytes(),
+                &tx.seq.to_be_bytes(),
+            );
+        }
         self.kvdb.write(db_tx).map_err(Into::into)
     }
 
