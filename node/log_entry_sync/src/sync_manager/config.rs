@@ -2,6 +2,7 @@ use crate::rpc_proxy::Address;
 use cfx_addr::Network;
 use std::time::Duration;
 
+#[allow(unused)]
 pub struct SyncManagerConfig {
     pub rpc_endpoint_url: String,
     pub cfx_network: Option<Network>,

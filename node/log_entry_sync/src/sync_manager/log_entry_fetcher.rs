@@ -1,15 +1,8 @@
 use crate::contracts::IonianLogContract;
-use crate::rpc_proxy::cfx::CfxClient;
-use crate::rpc_proxy::eth::EthClient;
-use crate::rpc_proxy::{Address, EvmRpcProxy};
+use crate::rpc_proxy::Address;
 use anyhow::{anyhow, Result};
-use cfx_addr::Network;
-use ethereum_types::U256;
-use ethers::contract::Contract;
-use ethers::prelude::{abigen, Middleware, Provider, Ws};
+use ethers::prelude::{Provider, Ws};
 use shared_types::Transaction;
-use std::fs::File;
-use std::pin::Pin;
 use std::sync::Arc;
 
 pub struct LogEntryFetcher {

@@ -17,11 +17,13 @@ pub type Address = H160;
 
 pub type Topic = H256;
 
+#[allow(unused)]
 pub struct SubFilter {
     to: Option<Address>,
     topics: Vec<Topic>,
 }
 
+#[allow(unused)]
 pub struct SubEvent {
     /// Address
     pub address: Address,

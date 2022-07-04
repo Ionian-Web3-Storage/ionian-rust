@@ -13,6 +13,7 @@ pub struct CfxClient {
 }
 
 impl CfxClient {
+    #[allow(unused)]
     pub async fn new(addr: &str, network: Network) -> Result<Self> {
         let client = new_cfx_client(addr).await?;
         Ok(Self { client, network })
@@ -23,9 +24,11 @@ impl CfxClient {
 impl EvmRpcProxy for CfxClient {
     async fn call(&self, to: Address, data: Bytes) -> Result<Bytes> {
         let to_addr = cfx_addr_encode(to.as_bytes(), self.network, EncodingOptions::Simple)?;
-        let mut request = CallRequest::default();
-        request.to = Some(to_addr);
-        request.data = Some(data);
+        let request = CallRequest {
+            to: Some(to_addr),
+            data: Some(data),
+            ..Default::default()
+        };
         self.client.call(request).await.map_err(Into::into)
     }
 

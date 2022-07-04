@@ -1,16 +1,11 @@
-use crate::rpc_proxy::cfx::CfxClient;
-use crate::rpc_proxy::eth::EthClient;
-use crate::rpc_proxy::{Address, EvmRpcProxy};
 use crate::sync_manager::config::SyncManagerConfig;
 use crate::sync_manager::log_entry_fetcher::LogEntryFetcher;
-use anyhow::{anyhow, Result};
-use ethers::prelude::{Provider, Ws};
+use anyhow::Result;
 use shared_types::Transaction;
+use std::sync::atomic;
 use std::sync::atomic::AtomicU64;
-use std::sync::mpsc::TryRecvError;
-use std::sync::{atomic, Arc};
-use storage_async::Store;
 use task_executor::TaskExecutor;
+use tokio::sync::mpsc::error::TryRecvError;
 use tokio::sync::mpsc::{
     channel, unbounded_channel, Receiver, Sender, UnboundedReceiver, UnboundedSender,
 };
@@ -24,6 +19,7 @@ struct LogSyncManager {
 }
 
 impl LogSyncManager {
+    #[allow(unused)]
     pub async fn spawn(
         config: SyncManagerConfig,
         executor: TaskExecutor,
@@ -61,7 +57,7 @@ impl LogSyncManager {
     ) -> Result<()> {
         let end_tx_seq = self.log_fetcher.num_log_entries().await?;
         for i in (start_tx_seq..end_tx_seq).step_by(self.config.fetch_batch_size) {
-            if self.stop_rx.try_recv() != TryRecvError::Empty {
+            if self.stop_rx.try_recv() != Err(TryRecvError::Empty) {
                 break;
             }
             let log_list = self
@@ -79,7 +75,7 @@ impl LogSyncManager {
     pub async fn sync(&mut self, sender: UnboundedSender<Transaction>) -> Result<()> {
         // TODO: Use pubsub instead of periodic pull.
         loop {
-            if self.stop_rx.try_recv() != TryRecvError::Empty {
+            if self.stop_rx.try_recv() != Err(TryRecvError::Empty) {
                 return Ok(());
             }
             let start_tx_seq = self.next_tx_seq.load(atomic::Ordering::SeqCst);

@@ -1,6 +1,6 @@
 use crate::rpc_proxy::{Address, EvmRpcProxy, SubEvent, SubFilter};
 use async_trait::async_trait;
-use ethers::prelude::{Bytes, Filter, Middleware, Provider, Ws};
+use ethers::prelude::{Bytes, Middleware, Provider, Ws};
 use ethers::types::TransactionRequest;
 use jsonrpsee::core::client::Subscription;
 
@@ -9,6 +9,7 @@ pub struct EthClient {
 }
 
 impl EthClient {
+    #[allow(unused)]
     pub async fn new(url: &str) -> anyhow::Result<EthClient> {
         let client = Provider::new(Ws::connect(url).await?);
         Ok(Self { client })

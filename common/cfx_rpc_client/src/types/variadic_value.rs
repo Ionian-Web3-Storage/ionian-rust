@@ -12,9 +12,9 @@ pub enum VariadicValue<T> {
     Multiple(Vec<T>),
 }
 
-impl<T> Into<Option<Vec<T>>> for VariadicValue<T> {
-    fn into(self) -> Option<Vec<T>> {
-        match self {
+impl<T> From<VariadicValue<T>> for Option<Vec<T>> {
+    fn from(v: VariadicValue<T>) -> Self {
+        match v {
             VariadicValue::Null => None,
             VariadicValue::Single(x) => Some(vec![x]),
             VariadicValue::Multiple(xs) => Some(xs),
@@ -41,9 +41,9 @@ where
         S: Serializer,
     {
         match &self {
-            &VariadicValue::Null => serializer.serialize_none(),
-            &VariadicValue::Single(x) => x.serialize(serializer),
-            &VariadicValue::Multiple(xs) => xs.serialize(serializer),
+            VariadicValue::Null => serializer.serialize_none(),
+            VariadicValue::Single(x) => x.serialize(serializer),
+            VariadicValue::Multiple(xs) => xs.serialize(serializer),
         }
     }
 }

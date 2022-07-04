@@ -1,6 +1,5 @@
 mod types;
 
-use anyhow;
 use ethers::prelude::Bytes;
 use jsonrpsee::async_client::Client;
 
