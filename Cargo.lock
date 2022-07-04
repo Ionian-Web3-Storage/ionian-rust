@@ -4177,11 +4177,13 @@ dependencies = [
 name = "rpc"
 version = "0.1.0"
 dependencies = [
+ "chunk_pool",
  "futures",
  "jsonrpsee",
  "network",
  "serde",
  "shared_types",
+ "storage",
  "sync",
  "task_executor",
  "tokio",

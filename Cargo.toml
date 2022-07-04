@@ -11,6 +11,7 @@ members = [
     "common/unused_port",
 
     "node",
+    "node/chunk_pool",
     "node/miner",
     "node/network",
     "node/router",
