@@ -7,9 +7,9 @@ edition = "2021"
 anyhow = { version = "1.0.58", features = ["backtrace"] }
 eth2_ssz = "0.4.0"
 ethereum-types = "0.13.1"
-kvdb = "0.11.0"
-kvdb-memorydb = "0.11.0"
-kvdb-rocksdb = "0.15.2"
+kvdb = "0.10.0"
+kvdb-memorydb = "0.10.0"
+kvdb-rocksdb = "0.14.0"
 #merkle_light = {git = "https://github.com/sitano/merkle_light.git", rev = "fe31d4e" }
 merkle_light = { git = "https://github.com/zz-ionian/merkle_light.git", rev = "2da76ae" }
 merkle_tree = { path = "../../common/merkle_tree"}
