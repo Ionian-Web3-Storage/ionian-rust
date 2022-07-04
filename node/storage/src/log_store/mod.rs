@@ -1,6 +1,4 @@
-use shared_types::{
-    Chunk, ChunkArray, ChunkArrayWithProof, ChunkWithProof, Transaction, TransactionHash,
-};
+use shared_types::{Chunk, ChunkArray, ChunkArrayWithProof, ChunkWithProof, Transaction};
 
 use crate::error::Result;
 
@@ -14,9 +12,6 @@ mod tests;
 /// Implementation Rationale:
 /// If the stored chunk is large, we can store the proof together with the chunk.
 pub trait LogStoreRead: LogStoreChunkRead {
-    /// Get a transaction by its hash.
-    fn get_tx_by_hash(&self, hash: &TransactionHash) -> Result<Option<Transaction>>;
-
     /// Get a transaction by its global log sequence number.
     fn get_tx_by_seq_number(&self, seq: u64) -> Result<Option<Transaction>>;
 

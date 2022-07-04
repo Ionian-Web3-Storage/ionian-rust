@@ -1,19 +1,19 @@
 use crate::contracts::IonianLogContract;
-use crate::rpc_proxy::cfx::CfxRpcProxy;
-use crate::rpc_proxy::eth::EthRpcProxy;
+use crate::rpc_proxy::cfx::CfxClient;
+use crate::rpc_proxy::eth::EthClient;
 use crate::rpc_proxy::{Address, EvmRpcProxy};
 use anyhow::{anyhow, Result};
 use cfx_addr::Network;
 use ethereum_types::U256;
 use ethers::contract::Contract;
 use ethers::prelude::{abigen, Middleware, Provider, Ws};
+use shared_types::Transaction;
 use std::fs::File;
 use std::pin::Pin;
 use std::sync::Arc;
 
 pub struct LogEntryFetcher {
     contract: IonianLogContract<Provider<Ws>>,
-    contract_address: Address,
 }
 
 impl LogEntryFetcher {
@@ -23,16 +23,37 @@ impl LogEntryFetcher {
             Arc::new(Provider::<Ws>::new(Ws::connect(url).await?)),
         );
         // TODO: `error` types are removed from the ABI json file.
-        Ok(Self {
-            contract,
-            contract_address,
-        })
+        Ok(Self { contract })
     }
 
-    async fn num_log_entries(&self) -> Result<u128> {
-        let func = self.contract.num_log_entries();
-        let response = func.call().await.map_err(|e| anyhow!("{:?}", e))?;
-        Ok(response.as_u128())
+    async fn num_log_entries(&self) -> Result<u64> {
+        let response = self
+            .contract
+            .num_log_entries()
+            .call()
+            .await
+            .map_err(|e| anyhow!("{:?}", e))?;
+        Ok(response.as_u64())
+    }
+
+    async fn entry_at(&self, offset: u64, limit: Option<usize>) -> Result<Vec<Transaction>> {
+        let response = self
+            .contract
+            .get_log_entries(offset.into(), limit.unwrap_or(1).into())
+            .call()
+            .await
+            .map_err(|e| anyhow!("{:?}", e))?;
+        Ok(response
+            .into_iter()
+            .enumerate()
+            .map(|(i, e)| Transaction {
+                stream_ids: e.stream_ids,
+                data: e.data.to_vec(),
+                size: e.size_bytes.as_u64(),
+                data_merkle_root: e.data_root.into(),
+                seq: offset + i as u64,
+            })
+            .collect())
     }
 }
 

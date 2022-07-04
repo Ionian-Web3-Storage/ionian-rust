@@ -1,5 +1,5 @@
-use crate::rpc_proxy::cfx::CfxRpcProxy;
-use crate::rpc_proxy::eth::EthRpcProxy;
+use crate::rpc_proxy::cfx::CfxClient;
+use crate::rpc_proxy::eth::EthClient;
 use crate::rpc_proxy::{Address, EvmRpcProxy};
 use crate::sync_manager::config::SyncManagerConfig;
 use crate::sync_manager::log_entry_fetcher::LogEntryFetcher;

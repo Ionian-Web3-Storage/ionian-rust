@@ -12,9 +12,9 @@ use merkle_tree::RawLeafSha3Algorithm;
 use rayon::prelude::*;
 use shared_types::{
     Chunk, ChunkArray, ChunkArrayWithProof, ChunkProof, ChunkWithProof, DataRoot, Transaction,
-    TransactionHash, CHUNK_SIZE,
+    CHUNK_SIZE,
 };
-use ssz::{Decode, DecodeError, Encode};
+use ssz::{Decode, Encode};
 use std::cmp;
 use std::path::Path;
 use std::sync::Arc;
@@ -343,7 +343,6 @@ impl LogStoreWrite for SimpleLogStore {
     fn put_tx(&self, tx: Transaction) -> Result<()> {
         let mut db_tx = self.kvdb.transaction();
         db_tx.put(COL_TX, &tx.seq.to_be_bytes(), &tx.as_ssz_bytes());
-        db_tx.put(COL_TX_HASH_INDEX, tx.hash.as_bytes(), &tx.seq.to_be_bytes());
         self.kvdb.write(db_tx).map_err(Into::into)
     }
 
@@ -411,18 +410,6 @@ impl LogStoreWrite for SimpleLogStore {
 }
 
 impl LogStoreRead for SimpleLogStore {
-    fn get_tx_by_hash(&self, hash: &TransactionHash) -> Result<Option<Transaction>> {
-        let value = try_option!(self.kvdb.get(COL_TX_HASH_INDEX, hash.as_bytes())?);
-        if value.len() != 8 {
-            bail!(Error::ValueDecodingError(DecodeError::InvalidByteLength {
-                len: value.len(),
-                expected: 8,
-            }));
-        }
-        let seq = u64::from_be_bytes(value.try_into().unwrap());
-        self.get_tx_by_seq_number(seq)
-    }
-
     fn get_tx_by_seq_number(&self, seq: u64) -> Result<Option<Transaction>> {
         let value = try_option!(self.kvdb.get(COL_TX, &seq.to_be_bytes())?);
         let tx = Transaction::from_ssz_bytes(&value).map_err(Error::from)?;

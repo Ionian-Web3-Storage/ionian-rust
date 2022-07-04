@@ -1,10 +1,7 @@
 use crate::types::RpcAddress;
 use ethereum_types::{U256, U64};
 use ethers::prelude::Bytes;
-use rustc_hex::{FromHex, ToHex};
-use serde::de::{Error, Visitor};
-use serde::{Serialize, Serializer, *};
-use std::fmt;
+use serde::Serialize;
 
 #[derive(Debug, Default, Serialize, PartialEq)]
 #[serde(rename_all = "camelCase")]

@@ -7,12 +7,12 @@ use ethers::prelude::Bytes;
 use jsonrpsee::async_client::Client;
 use jsonrpsee::core::client::Subscription;
 
-pub struct CfxRpcProxy {
+pub struct CfxClient {
     client: Client,
     network: Network,
 }
 
-impl CfxRpcProxy {
+impl CfxClient {
     pub async fn new(addr: &str, network: Network) -> Result<Self> {
         let client = new_cfx_client(addr).await?;
         Ok(Self { client, network })
@@ -20,7 +20,7 @@ impl CfxRpcProxy {
 }
 
 #[async_trait]
-impl EvmRpcProxy for CfxRpcProxy {
+impl EvmRpcProxy for CfxClient {
     async fn call(&self, to: Address, data: Bytes) -> Result<Bytes> {
         let to_addr = cfx_addr_encode(to.as_bytes(), self.network, EncodingOptions::Simple)?;
         let mut request = CallRequest::default();
@@ -29,7 +29,7 @@ impl EvmRpcProxy for CfxRpcProxy {
         self.client.call(request).await.map_err(Into::into)
     }
 
-    async fn sub_events(&self, filter: SubFilter) -> Subscription<SubEvent> {
+    async fn sub_events(&self, _filter: SubFilter) -> Subscription<SubEvent> {
         todo!()
     }
 }

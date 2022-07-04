@@ -23,3 +23,6 @@ members = [
     "node/storage-async",
     "node/sync",
 ]
+
+[patch.crates-io]
+ethabi = { git = "https://github.com/zz-ionian/ethabi.git", branch = "eth_0.12" }

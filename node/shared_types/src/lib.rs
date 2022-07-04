@@ -1,5 +1,5 @@
 use anyhow::{anyhow, bail, Result};
-use ethereum_types::H256;
+use ethereum_types::{H256, U256};
 use merkle_light::hash::{Algorithm, Hashable};
 use merkle_light::merkle::{log2_pow2, next_pow2};
 use merkle_light::proof::Proof;
@@ -12,9 +12,6 @@ use std::hash::Hasher;
 pub enum RequestId {
     Router,
 }
-
-/// Placeholder types for transactions and chunks.
-pub type TransactionHash = H256;
 
 pub type DataRoot = H256;
 
@@ -100,9 +97,11 @@ impl ChunkProof {
 
 #[derive(Clone, Debug, Eq, PartialEq, DeriveDecode, DeriveEncode)]
 pub struct Transaction {
-    pub hash: TransactionHash,
-    pub size: u64,
+    pub stream_ids: Vec<U256>,
+    /// In-place data.
+    pub data: Vec<u8>,
     pub data_merkle_root: DataRoot,
+    pub size: u64,
     pub seq: u64,
 }
 
