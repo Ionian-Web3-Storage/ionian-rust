@@ -204,7 +204,7 @@ impl MemoryChunkPool {
     async fn get_tx_by_root(&self, root: &DataRoot) -> Result<Option<Transaction>> {
         match self.log_store.get_tx_seq_by_data_root(root)? {
             Some(tx_seq) => self.log_store.get_tx_by_seq_number(tx_seq),
-            None => return Ok(None),
+            None => Ok(None),
         }
     }
 
@@ -273,7 +273,7 @@ impl MemoryChunkPool {
             None => return Ok(false),
         };
 
-        file.update_with_tx(&tx);
+        file.update_with_tx(tx);
 
         // File not uploaded completely
         if file.next_index < file.total_chunks.unwrap() {
