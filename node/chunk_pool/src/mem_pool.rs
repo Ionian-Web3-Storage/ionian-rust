@@ -1,10 +1,10 @@
 use anyhow::{anyhow, bail, Result};
 use async_lock::Mutex;
-use shared_types::{DataRoot, CHUNK_SIZE, ChunkArray, Transaction};
+use shared_types::{ChunkArray, DataRoot, Transaction, CHUNK_SIZE};
 use std::collections::{HashMap, VecDeque};
-use tokio::sync::mpsc::UnboundedSender;
-use storage::log_store::Store;
 use std::sync::Arc;
+use storage::log_store::Store;
+use tokio::sync::mpsc::UnboundedSender;
 
 // to avoid OOM
 const MAX_CACHED_CHUNKS_PER_FILE: usize = 1024 * 1024; // 256M
@@ -55,7 +55,13 @@ impl Inner {
 
     /// Try to cache the segment into memory pool if log entry not retrieved from blockchain yet.
     /// Otherwise, return segments to write into store asynchronously for different files.
-    fn cache_or_write_segment(&mut self, root: DataRoot, segment: Vec<u8>, start_index: usize, maybe_tx: Option<Transaction>) -> Result<Option<(u64, VecDeque<ChunkArray>)>> {
+    fn cache_or_write_segment(
+        &mut self,
+        root: DataRoot,
+        segment: Vec<u8>,
+        start_index: usize,
+        maybe_tx: Option<Transaction>,
+    ) -> Result<Option<(u64, VecDeque<ChunkArray>)>> {
         let file = self.files.entry(root).or_default();
 
         // Segment already uploaded.
@@ -87,10 +93,12 @@ impl Inner {
         if file.total_chunks.is_some() {
             // Note, do not update the counter of cached chunks in this case.
             file.writing = true;
-            file.segments.get_or_insert_with(Default::default).push_back(ChunkArray{
-                data: segment,
-                start_index: start_index as u32,
-            });
+            file.segments
+                .get_or_insert_with(Default::default)
+                .push_back(ChunkArray {
+                    data: segment,
+                    start_index: start_index as u32,
+                });
             return Ok(Some((file.tx_seq, file.segments.take().unwrap())));
         }
 
@@ -108,15 +116,22 @@ impl Inner {
         // Cache segment and update the counter for cached chunks.
         self.total_chunks += num_chunks;
         file.next_index += num_chunks;
-        file.segments.get_or_insert_with(Default::default).push_back(ChunkArray{
-            data: segment,
-            start_index: start_index as u32,
-        });
+        file.segments
+            .get_or_insert_with(Default::default)
+            .push_back(ChunkArray {
+                data: segment,
+                start_index: start_index as u32,
+            });
 
         Ok(None)
     }
 
-    fn on_write_succeeded(&mut self, root: &DataRoot, cur_seg_chunks: usize, cached_segs_chunks: usize) {
+    fn on_write_succeeded(
+        &mut self,
+        root: &DataRoot,
+        cur_seg_chunks: usize,
+        cached_segs_chunks: usize,
+    ) {
         let file = match self.files.get_mut(root) {
             Some(f) => f,
             None => return,
@@ -211,7 +226,12 @@ impl MemoryChunkPool {
         }
 
         // Cache segment in memory if log entry not retrieved yet, or write into store directly.
-        let (tx_seq, mut segments) = match self.inner.lock().await.cache_or_write_segment(root, segment, start_index, maybe_tx)? {
+        let (tx_seq, mut segments) = match self.inner.lock().await.cache_or_write_segment(
+            root,
+            segment,
+            start_index,
+            maybe_tx,
+        )? {
             Some(tuple) => tuple,
             None => return Ok(()),
         };
@@ -228,12 +248,18 @@ impl MemoryChunkPool {
             // 1. Push the failed segment back to front. (enhance store to return Err(ChunkArray))
             // 2. Put the incompleted segments back to memory pool.
             if let Err(e) = self.log_store.put_chunks(tx_seq, seg) {
-                self.inner.lock().await.on_write_failed(&root, pending_seg_chunks);
+                self.inner
+                    .lock()
+                    .await
+                    .on_write_failed(&root, pending_seg_chunks);
                 return Err(e);
             }
         }
 
-        self.inner.lock().await.on_write_succeeded(&root, num_chunks, pending_seg_chunks);
+        self.inner
+            .lock()
+            .await
+            .on_write_succeeded(&root, num_chunks, pending_seg_chunks);
 
         Ok(())
     }
