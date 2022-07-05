@@ -1,6 +1,6 @@
 use anyhow::{anyhow, bail, Result};
 use async_lock::Mutex;
-use shared_types::{DataRoot, CHUNK_SIZE, ChunkArray};
+use shared_types::{DataRoot, CHUNK_SIZE, ChunkArray, Transaction};
 use std::collections::{HashMap, VecDeque};
 use tokio::sync::mpsc::UnboundedSender;
 
@@ -14,6 +14,16 @@ pub struct MemoryCachedFile {
     next_index: usize,   // next chunk index to cache
     total_chunks: usize, // total number of chunks for the cached file
     pub tx_seq: u64,
+}
+
+impl MemoryCachedFile {
+    fn update_with_tx(&mut self, tx: &Transaction) {
+        self.tx_seq = tx.seq;
+        self.total_chunks = tx.size as usize / CHUNK_SIZE;
+        if tx.size as usize % CHUNK_SIZE > 0 {
+            self.total_chunks += 1;
+        }
+    }
 }
 
 #[derive(Default)]
@@ -118,22 +128,11 @@ impl MemoryChunkPool {
     }
 
     // Updates the cached file info when log entry retrieved from blockchain.
-    pub async fn update_file_info(&self, root: DataRoot, file_size: usize) -> Result<()> {
-        if file_size == 0 {
-            return Ok(());
-        }
-
+    pub async fn update_file_info(&self, tx: &Transaction) -> Result<()> {
         let mut inner = self.inner.lock().await;
-        let file = inner.files.entry(root).or_default();
-
-        file.total_chunks = file_size / CHUNK_SIZE;
-        if file_size % CHUNK_SIZE > 0 {
-            file.total_chunks += 1;
-        }
-
-        self.notify_if_file_ready(root, file)?;
-
-        Ok(())
+        let file = inner.files.entry(tx.data_merkle_root).or_default();
+        file.update_with_tx(&tx);
+        self.notify_if_file_ready(tx.data_merkle_root, file)
     }
 
     fn notify_if_file_ready(&self, root: DataRoot, file: &MemoryCachedFile) -> Result<()> {
