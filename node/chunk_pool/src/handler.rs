@@ -40,45 +40,38 @@ impl ChunkPoolHandler {
         };
 
         // File will not be persisted if any error occurred.
-        self.persist_file(root, file)?;
+        self.persist_file(file)?;
 
         Ok(true)
     }
 
-    fn persist_file(&self, root: DataRoot, file: MemoryCachedFile) -> Result<()> {
+    fn persist_file(&self, file: MemoryCachedFile) -> Result<()> {
         let mut data = file.data;
         let mut chunk_offset: usize = 0;
 
         loop {
             if data.len() <= SEGMENT_DATA_SIZE {
-                self.persist_segment(&root, data, chunk_offset)?;
+                self.log_store.put_chunks(file.tx_seq, ChunkArray {
+                    data,
+                    start_index: chunk_offset as u32,
+                })?;
                 break;
             }
 
             // TODO(qhz): avoid frequent memory reallocation.
             let remain = data.split_off(SEGMENT_DATA_SIZE);
-            self.persist_segment(&root, data, chunk_offset)?;
+            self.log_store.put_chunks(
+                file.tx_seq,
+                ChunkArray {
+                    data,
+                    start_index: chunk_offset as u32,
+                },
+            )?;
 
             chunk_offset += super::NUM_CHUNKS_PER_SEGMENT;
             data = remain;
         }
 
         Ok(())
-    }
-
-    fn persist_segment(
-        &self,
-        _root: &DataRoot,
-        segment: Vec<u8>,
-        chunk_start_index: usize,
-    ) -> Result<()> {
-        // TODO(qhz): enhance LogStoreChunkWrite trait to put chunks by data root.
-        self.log_store.put_chunks(
-            1,
-            ChunkArray {
-                data: segment,
-                start_index: chunk_start_index as u32,
-            },
-        )
     }
 }

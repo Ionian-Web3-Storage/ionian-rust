@@ -13,6 +13,7 @@ pub struct MemoryCachedFile {
     pub data: Vec<u8>,   // cached data chunks
     next_index: usize,   // next chunk index to cache
     total_chunks: usize, // total number of chunks for the cached file
+    pub tx_seq: u64,
 }
 
 #[derive(Default)]
