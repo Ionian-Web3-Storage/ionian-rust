@@ -1,7 +1,7 @@
 use crate::log_store::simple_log_store::{sub_merkle_tree, SimpleLogStore};
 use crate::log_store::{LogStoreChunkRead, LogStoreChunkWrite, LogStoreRead, LogStoreWrite};
 use rand::random;
-use shared_types::{ChunkArray, ChunkProof, Transaction, TransactionHash, CHUNK_SIZE};
+use shared_types::{ChunkArray, ChunkProof, Transaction, CHUNK_SIZE};
 use std::cmp;
 use std::ops::Deref;
 use tempdir::TempDir;
@@ -46,12 +46,12 @@ fn test_put_get() {
         data[i * CHUNK_SIZE] = random();
     }
     let merkle = sub_merkle_tree(&data).unwrap();
-    let tx_hash = TransactionHash::random();
     let tx = Transaction {
-        hash: tx_hash,
+        stream_ids: vec![],
         size: data_size as u64,
         data_merkle_root: merkle.root().into(),
         seq: 0,
+        data: vec![],
     };
     store.put_tx(tx.clone()).unwrap();
     for start_index in (0..chunk_count).step_by(store.chunk_batch_size) {
@@ -71,7 +71,6 @@ fn test_put_get() {
         start_index: 0,
     };
     assert_eq!(store.get_tx_by_seq_number(0).unwrap().unwrap(), tx);
-    assert_eq!(store.get_tx_by_hash(&tx_hash).unwrap().unwrap(), tx);
     for i in 0..chunk_count {
         assert_eq!(
             store.get_chunk_by_tx_and_index(tx.seq, i).unwrap().unwrap(),
