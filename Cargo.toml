@@ -12,6 +12,7 @@ members = [
     "common/cfx_rpc_client",
 
     "node",
+    "node/chunk_pool",
     "node/log_entry_sync",
     "node/miner",
     "node/network",

@@ -783,6 +783,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "chunk_pool"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-lock",
+ "shared_types",
+ "storage",
+ "tokio",
+]
+
+[[package]]
 name = "cipher"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5449,11 +5460,13 @@ dependencies = [
 name = "rpc"
 version = "0.1.0"
 dependencies = [
+ "chunk_pool",
  "futures",
  "jsonrpsee",
  "network",
  "serde",
  "shared_types",
+ "storage",
  "sync",
  "task_executor",
  "tokio",

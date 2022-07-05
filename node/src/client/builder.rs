@@ -167,6 +167,8 @@ impl ClientBuilder {
             network_globals: self.network.as_ref().map(|network| network.globals.clone()),
             network_send: self.network.as_ref().map(|network| network.send.clone()),
             sync_send: self.sync.as_ref().map(|sync| sync.send.clone()),
+            log_store: self.store.as_ref().cloned(),
+            chunk_pool: None,
             shutdown_sender: executor.shutdown_sender(),
         };
 

@@ -2,10 +2,13 @@ use super::api::RpcServer;
 use crate::error;
 use crate::types::Status;
 use crate::Context;
+use chunk_pool::MemoryChunkPool;
 use jsonrpsee::core::async_trait;
 use network::{rpc::StatusMessage, NetworkGlobals};
 use network::{NetworkMessage, RequestId};
+use shared_types::DataRoot;
 use std::sync::Arc;
+use storage::log_store::Store;
 use tokio::sync::mpsc::UnboundedSender;
 
 pub struct RpcServerImpl {
@@ -49,6 +52,62 @@ impl RpcServer for RpcServerImpl {
 
         Ok(())
     }
+
+    #[tracing::instrument(skip(self), err)]
+    async fn upload_segment(
+        &self,
+        data_root: DataRoot,
+        data_segment: Vec<u8>,
+        start_index: u32,
+        _proof: Option<Vec<u8>>,
+    ) -> Result<(), jsonrpsee::core::Error> {
+        debug!("ionian_uploadSegment()");
+
+        // TODO(qhz): unmarshal and validate proof
+
+        // Chunk pool will validate the data size.
+        self.chunk_pool()?
+            .add_chunks(data_root, data_segment, start_index as usize)
+            .await?;
+
+        Ok(())
+    }
+
+    #[tracing::instrument(skip(self), err)]
+    async fn download_segment(
+        &self,
+        _data_root: DataRoot,
+        start_index: u32,
+        end_index: u32,
+    ) -> Result<Option<Vec<u8>>, jsonrpsee::core::Error> {
+        debug!("ionian_downloadSegment()");
+
+        if start_index >= end_index {
+            return Err(error::invalid_params("end_index", "invalid chunk index"));
+        }
+
+        if end_index - start_index > chunk_pool::NUM_CHUNKS_PER_SEGMENT as u32 {
+            return Err(error::invalid_params(
+                "end_index",
+                format!(
+                    "exceeds maximum chunks {}",
+                    chunk_pool::NUM_CHUNKS_PER_SEGMENT
+                ),
+            ));
+        }
+
+        // TODO(qhz): enhance LogStoreChunkRead trait to retrieve chunks by data root.
+        let maybe_segment = self.log_store()?.get_chunks_by_tx_and_index_range(
+            1,
+            start_index as usize,
+            end_index as usize,
+        )?;
+
+        match maybe_segment {
+            Some(chunks) => Ok(Some(chunks.data)),
+            None => Ok(None),
+        }
+    }
 }
 
 impl RpcServerImpl {
@@ -65,6 +124,20 @@ impl RpcServerImpl {
         match &self.ctx.network_send {
             Some(network_send) => Ok(network_send),
             None => Err(error::internal_error("Network send is not initialized.")),
+        }
+    }
+
+    fn chunk_pool(&self) -> Result<&Arc<MemoryChunkPool>, jsonrpsee::core::Error> {
+        match &self.ctx.chunk_pool {
+            Some(pool) => Ok(pool),
+            None => Err(error::internal_error("chunk pool is not initialized")),
+        }
+    }
+
+    fn log_store(&self) -> Result<&Arc<dyn Store>, jsonrpsee::core::Error> {
+        match &self.ctx.log_store {
+            Some(store) => Ok(store),
+            None => Err(error::internal_error("log store is not initialized")),
         }
     }
 }

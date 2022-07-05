@@ -7,12 +7,14 @@ mod error;
 mod ionian;
 mod types;
 
+use chunk_pool::MemoryChunkPool;
 use futures::channel::mpsc::Sender;
 use jsonrpsee::http_server::{HttpServerBuilder, HttpServerHandle};
 use network::NetworkGlobals;
 use network::NetworkMessage;
 use std::error::Error;
 use std::sync::Arc;
+use storage::log_store::Store;
 use sync::SyncSender;
 use task_executor::ShutdownReason;
 use tokio::sync::mpsc::UnboundedSender;
@@ -31,6 +33,8 @@ pub struct Context {
     pub network_globals: Option<Arc<NetworkGlobals>>,
     pub network_send: Option<UnboundedSender<NetworkMessage>>,
     pub sync_send: Option<SyncSender>,
+    pub chunk_pool: Option<Arc<MemoryChunkPool>>,
+    pub log_store: Option<Arc<dyn Store>>,
     pub shutdown_sender: Sender<ShutdownReason>,
 }
 
