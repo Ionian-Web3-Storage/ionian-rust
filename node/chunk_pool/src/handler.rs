@@ -32,13 +32,18 @@ impl ChunkPoolHandler {
             None => return Ok(false),
         };
 
-        let mut file = match self.mem_pool.remove_file(&root).await {
+        let file = match self.mem_pool.remove_file(&root).await {
             Some(file) => file,
             None => return Ok(false),
         };
 
+        let mut segments = match file.segments {
+            Some(seg) => seg,
+            None => return Ok(false),
+        };
+
         // File will not be persisted if any error occurred.
-        while let Some(segment) = file.segments.pop_front() {
+        while let Some(segment) = segments.pop_front() {
             self.log_store.put_chunks(file.tx_seq, segment)?;
         }
 
