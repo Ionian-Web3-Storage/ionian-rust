@@ -1,20 +1,17 @@
 use crate::contracts::IonianLogContract;
 use crate::rpc_proxy::Address;
 use anyhow::{anyhow, Result};
-use ethers::prelude::{Provider, Ws};
+use ethers::prelude::{Http, Provider};
 use shared_types::Transaction;
 use std::sync::Arc;
 
 pub struct LogEntryFetcher {
-    contract: IonianLogContract<Provider<Ws>>,
+    contract: IonianLogContract<Provider<Http>>,
 }
 
 impl LogEntryFetcher {
     pub async fn new(url: &str, contract_address: Address) -> Result<Self> {
-        let contract = IonianLogContract::new(
-            contract_address,
-            Arc::new(Provider::<Ws>::new(Ws::connect(url).await?)),
-        );
+        let contract = IonianLogContract::new(contract_address, Arc::new(Provider::try_from(url)?));
         // TODO: `error` types are removed from the ABI json file.
         Ok(Self { contract })
     }

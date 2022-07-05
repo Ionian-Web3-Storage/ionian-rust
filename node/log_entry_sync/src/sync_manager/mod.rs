@@ -1,10 +1,9 @@
 use crate::sync_manager::config::SyncManagerConfig;
 use crate::sync_manager::log_entry_fetcher::LogEntryFetcher;
 use anyhow::Result;
+use jsonrpsee::tracing::error;
 use shared_types::Transaction;
-use std::sync::atomic;
-use std::sync::atomic::AtomicU64;
-use task_executor::TaskExecutor;
+use task_executor::{ShutdownReason, TaskExecutor};
 use tokio::sync::mpsc::error::TryRecvError;
 use tokio::sync::mpsc::{
     channel, unbounded_channel, Receiver, Sender, UnboundedReceiver, UnboundedSender,
@@ -14,7 +13,7 @@ struct LogSyncManager {
     config: SyncManagerConfig,
     log_fetcher: LogEntryFetcher,
 
-    next_tx_seq: AtomicU64,
+    next_tx_seq: u64,
     stop_rx: Receiver<()>,
 }
 
@@ -31,19 +30,29 @@ impl LogSyncManager {
         let mut log_sync_manager = Self {
             config,
             log_fetcher,
-            next_tx_seq: start_tx_seq.into(),
+            next_tx_seq: start_tx_seq,
             stop_rx: signal_rx,
         };
         let (tx, rx) = unbounded_channel();
-        // TODO: How to handle error here?
+        let mut shutdown_sender = executor.shutdown_sender();
         executor.spawn(
             async move {
                 // TODO: Do we need to notify that the recover process completes?
-                log_sync_manager
+                if let Err(e) = log_sync_manager
                     .fetch_to_end(tx.clone(), start_tx_seq)
                     .await
-                    .unwrap();
-                log_sync_manager.sync(tx).await.unwrap();
+                {
+                    error!("log sync recovery failure: e={:?}", e);
+                    shutdown_sender
+                        .try_send(ShutdownReason::Failure("log sync recovery failure"))
+                        .expect("shutdown send error");
+                }
+                if let Err(e) = log_sync_manager.sync(tx).await {
+                    error!("log sync failure: e={:?}", e);
+                    shutdown_sender
+                        .try_send(ShutdownReason::Failure("log sync failure"))
+                        .expect("shutdown send error");
+                }
             },
             "log_sync",
         );
@@ -67,19 +76,17 @@ impl LogSyncManager {
             for log in log_list {
                 sender.send(log)?;
             }
-            self.next_tx_seq.store(i, atomic::Ordering::SeqCst);
+            self.next_tx_seq = i;
         }
         Ok(())
     }
 
     pub async fn sync(&mut self, sender: UnboundedSender<Transaction>) -> Result<()> {
-        // TODO: Use pubsub instead of periodic pull.
         loop {
             if self.stop_rx.try_recv() != Err(TryRecvError::Empty) {
                 return Ok(());
             }
-            let start_tx_seq = self.next_tx_seq.load(atomic::Ordering::SeqCst);
-            self.fetch_to_end(sender.clone(), start_tx_seq).await?;
+            self.fetch_to_end(sender.clone(), self.next_tx_seq).await?;
             tokio::time::sleep(self.config.sync_period).await;
         }
     }
