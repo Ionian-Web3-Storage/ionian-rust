@@ -7,5 +7,5 @@ edition = "2021"
 anyhow = { version = "1.0.58", features = ["backtrace"] }
 shared_types = { path = "../shared_types" }
 storage = { path = "../storage" }
-parking_lot = "0.12.1"
 tokio = { version = "1.19.2", features = ["sync"] }
+async-lock = "2.5.0"

@@ -1,5 +1,5 @@
 use anyhow::{anyhow, bail, Result};
-use parking_lot::RwLock;
+use async_lock::Mutex;
 use shared_types::{DataRoot, CHUNK_SIZE};
 use std::collections::HashMap;
 use tokio::sync::mpsc::UnboundedSender;
@@ -24,7 +24,7 @@ struct Inner {
 /// Caches data chunks in memory before the entire file uploaded to storage node
 /// and data root verified on blockchain.
 pub struct MemoryChunkPool {
-    inner: RwLock<Inner>,
+    inner: Mutex<Inner>,
     sender: UnboundedSender<DataRoot>,
 }
 
@@ -36,7 +36,12 @@ impl MemoryChunkPool {
         }
     }
 
-    pub fn add_chunks(&self, root: DataRoot, chunks: Vec<u8>, start_index: usize) -> Result<()> {
+    pub async fn add_chunks(
+        &self,
+        root: DataRoot,
+        chunks: Vec<u8>,
+        start_index: usize,
+    ) -> Result<()> {
         if chunks.is_empty() {
             bail!(anyhow!("data is empty"));
         }
@@ -61,7 +66,7 @@ impl MemoryChunkPool {
             ));
         }
 
-        let mut inner = self.inner.write();
+        let mut inner = self.inner.lock().await;
 
         // Limits the maximum number of chunks of the whole pool.
         if inner.total_chunks + num_chunks > MAX_CACHED_CHUNKS_ALL {
@@ -101,12 +106,12 @@ impl MemoryChunkPool {
     }
 
     // Updates the cached file info when log entry retrieved from blockchain.
-    pub fn update_file_info(&self, root: DataRoot, file_size: usize) -> Result<()> {
+    pub async fn update_file_info(&self, root: DataRoot, file_size: usize) -> Result<()> {
         if file_size == 0 {
             return Ok(());
         }
 
-        let mut inner = self.inner.write();
+        let mut inner = self.inner.lock().await;
         let file = inner.files.entry(root).or_default();
 
         file.total_chunks = file_size / CHUNK_SIZE;
@@ -137,8 +142,8 @@ impl MemoryChunkPool {
         Ok(())
     }
 
-    pub(crate) fn remove_file(&self, root: &DataRoot) -> Option<MemoryCachedFile> {
-        let mut inner = self.inner.write();
+    pub(crate) async fn remove_file(&self, root: &DataRoot) -> Option<MemoryCachedFile> {
+        let mut inner = self.inner.lock().await;
 
         let file = inner.files.remove(root)?;
         inner.total_chunks -= file.total_chunks;

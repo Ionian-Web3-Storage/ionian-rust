@@ -67,7 +67,8 @@ impl RpcServer for RpcServerImpl {
 
         // Chunk pool will validate the data size.
         self.chunk_pool()?
-            .add_chunks(data_root, data_segment, start_index as usize)?;
+            .add_chunks(data_root, data_segment, start_index as usize)
+            .await?;
 
         Ok(())
     }

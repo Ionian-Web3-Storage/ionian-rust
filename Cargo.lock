@@ -542,7 +542,7 @@ name = "chunk_pool"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "parking_lot 0.12.1",
+ "async-lock",
  "shared_types",
  "storage",
  "tokio",

@@ -29,17 +29,20 @@ impl ChunkPoolHandler {
     }
 
     pub async fn handle(&mut self) -> Result<bool> {
-        match self.receiver.recv().await {
-            Some(root) => match self.mem_pool.remove_file(&root) {
-                Some(file) => {
-                    // File will not be persisted if any error occurred.
-                    self.persist_file(root, file)?;
-                    Ok(true)
-                }
-                None => Ok(false),
-            },
-            None => Ok(false),
-        }
+        let root = match self.receiver.recv().await {
+            Some(root) => root,
+            None => return Ok(false),
+        };
+
+        let file = match self.mem_pool.remove_file(&root).await {
+            Some(file) => file,
+            None => return Ok(false),
+        };
+
+        // File will not be persisted if any error occurred.
+        self.persist_file(root, file)?;
+
+        Ok(true)
     }
 
     fn persist_file(&self, root: DataRoot, file: MemoryCachedFile) -> Result<()> {
