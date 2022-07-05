@@ -63,6 +63,8 @@ impl RpcServer for RpcServerImpl {
     ) -> Result<(), jsonrpsee::core::Error> {
         debug!("ionian_uploadSegment()");
 
+        // TODO(qhz): check if file or segment already uploaded
+
         // TODO(qhz): unmarshal and validate proof
 
         // Chunk pool will validate the data size.
