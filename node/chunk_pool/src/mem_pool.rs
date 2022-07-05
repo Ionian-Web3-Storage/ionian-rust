@@ -36,12 +36,7 @@ impl MemoryChunkPool {
         }
     }
 
-    pub async fn add_chunks(
-        &self,
-        root: DataRoot,
-        chunks: Vec<u8>,
-        start_index: usize,
-    ) -> Result<()> {
+    fn validate_chunks(&self, chunks: &Vec<u8>, start_index: usize) -> Result<usize> {
         if chunks.is_empty() {
             bail!(anyhow!("data is empty"));
         }
@@ -51,6 +46,8 @@ impl MemoryChunkPool {
         }
 
         let num_chunks = chunks.len() / CHUNK_SIZE;
+
+        // Limits the maximum number of chunks of single segment.
         if num_chunks > super::NUM_CHUNKS_PER_SEGMENT {
             bail!(anyhow!(
                 "exceeds the maximum cached chunks of single segment: {}",
@@ -59,12 +56,24 @@ impl MemoryChunkPool {
         }
 
         // Limits the maximum number of chunks of single file.
+        // Note, it suppose that all chunks uploaded in sequence.
         if start_index + num_chunks > MAX_CACHED_CHUNKS_PER_FILE {
             bail!(anyhow!(
                 "exceeds the maximum cached chunks of single file: {}",
                 MAX_CACHED_CHUNKS_PER_FILE
             ));
         }
+
+        Ok(num_chunks)
+    }
+
+    pub async fn add_chunks(
+        &self,
+        root: DataRoot,
+        chunks: Vec<u8>,
+        start_index: usize,
+    ) -> Result<()> {
+        let num_chunks = self.validate_chunks(&chunks, start_index)?;
 
         let mut inner = self.inner.lock().await;
 
