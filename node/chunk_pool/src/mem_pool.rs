@@ -1,7 +1,7 @@
 use anyhow::{anyhow, bail, Result};
 use async_lock::Mutex;
-use shared_types::{DataRoot, CHUNK_SIZE};
-use std::collections::HashMap;
+use shared_types::{DataRoot, CHUNK_SIZE, ChunkArray};
+use std::collections::{HashMap, VecDeque};
 use tokio::sync::mpsc::UnboundedSender;
 
 // to avoid OOM
@@ -10,7 +10,7 @@ const MAX_CACHED_CHUNKS_ALL: usize = 1024 * 1024 * 1024 / CHUNK_SIZE; // 1G
 
 #[derive(Default)]
 pub struct MemoryCachedFile {
-    pub data: Vec<u8>,   // cached data chunks
+    pub segments: VecDeque<ChunkArray>,   // cached segments
     next_index: usize,   // next chunk index to cache
     total_chunks: usize, // total number of chunks for the cached file
     pub tx_seq: u64,
@@ -106,8 +106,10 @@ impl MemoryChunkPool {
         // TODO(qhz): try to update `total_chunks` from db for the 1st chunk,
         // in case that client do not upload chunks to storage node timly.
 
-        // TODO(qhz): reduce the memory reallocation.
-        file.data.extend_from_slice(&chunks);
+        file.segments.push_back(ChunkArray{
+            data: chunks,
+            start_index: start_index as u32,
+        });
         file.next_index += num_chunks;
 
         self.notify_if_file_ready(root, file)?;
