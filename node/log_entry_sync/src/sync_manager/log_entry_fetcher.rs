@@ -46,14 +46,3 @@ impl LogEntryFetcher {
             .collect())
     }
 }
-
-#[tokio::test]
-async fn test_fetch() {
-    let fetcher = LogEntryFetcher::new(
-        "wss://evmtestnet.confluxrpc.com:443/ws",
-        "b42a30f4ba37ba033bb918f028561785bd8aa34c".parse().unwrap(),
-    )
-    .await
-    .unwrap();
-    println!("{}", fetcher.num_log_entries().await.unwrap());
-}

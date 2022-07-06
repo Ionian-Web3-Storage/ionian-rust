@@ -24,14 +24,3 @@ pub async fn new_cfx_client(url: &str) -> anyhow::Result<Client> {
     let client = WsClientBuilder::default().build(url).await?;
     Ok(client)
 }
-
-#[tokio::test]
-async fn test_call() {
-    let client = new_cfx_client("wss://test.confluxrpc.com:443/ws")
-        .await
-        .unwrap();
-    let mut request = CallRequest::default();
-    request.to = Some("cfxtest:acaycr5u9juzgu9m5wfyz39ya7u5h84x322j2zesv3".to_string());
-    let r = client.call(request).await.unwrap();
-    println!("{:?}", r);
-}

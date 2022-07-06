@@ -61,8 +61,6 @@
 //!
 //! # Examples
 //!
-//! [`test_sip.rs`]: algorithm implementation example for std sip hasher, u64 hash items
-//! [`test_xor128.rs`]: custom hash example xor128
 //! [`test_cmh.rs`]: custom merkle hasher implementation example
 //! [`crypto_bitcoin_mt.rs`]: bitcoin merkle tree using crypto lib
 //! [`crypto_chaincore_mt.rs`]: chain core merkle tree using crypto lib
@@ -174,14 +172,6 @@ pub mod merkle;
 /// Tests data.
 #[cfg(test)]
 mod test_item;
-
-/// Tests XOR128.
-#[cfg(test)]
-mod test_xor128;
-
-/// Tests SIP.
-#[cfg(test)]
-mod test_sip;
 
 /// Tests for Merkle Hasher Customization
 #[cfg(test)]
