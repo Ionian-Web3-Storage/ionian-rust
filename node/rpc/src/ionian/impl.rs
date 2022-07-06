@@ -63,7 +63,12 @@ impl RpcServer for RpcServerImpl {
     ) -> Result<(), jsonrpsee::core::Error> {
         debug!("ionian_uploadSegment()");
 
-        // TODO(qhz): check if file or segment already uploaded
+        let log_store = self.log_store()?;
+        if let Some(tx_seq) = log_store.get_tx_seq_by_data_root(&data_root)? {
+            if log_store.check_tx_completed(tx_seq)? {
+                return Ok(());
+            }
+        }
 
         // TODO(qhz): unmarshal and validate proof
 

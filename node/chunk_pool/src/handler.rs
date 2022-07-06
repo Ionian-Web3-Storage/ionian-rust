@@ -26,12 +26,16 @@ impl ChunkPoolHandler {
         }
     }
 
+    /// Writes memory cached chunks into store and finalize transaction.
+    /// Note, a separate thread should be spawned to call this method.
     pub async fn handle(&mut self) -> Result<bool> {
         let root = match self.receiver.recv().await {
             Some(root) => root,
             None => return Ok(false),
         };
 
+        // TODO(qhz): remove from memory pool after transaction finalized,
+        // when store support to write chunks with reference.
         let file = match self.mem_pool.remove_file(&root).await {
             Some(file) => file,
             None => return Ok(false),
@@ -42,10 +46,13 @@ impl ChunkPoolHandler {
             None => return Ok(false),
         };
 
-        // File will not be persisted if any error occurred.
+        // When failed to write chunks or finalize transaction in rare case,
+        // client need to upload the whole file again.
         while let Some(segment) = segments.pop_front() {
             self.log_store.put_chunks(file.tx_seq, segment)?;
         }
+
+        self.log_store.finalize_tx(file.tx_seq)?;
 
         Ok(true)
     }

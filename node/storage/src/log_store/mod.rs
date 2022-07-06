@@ -91,5 +91,5 @@ pub trait LogStoreChunkWrite {
 pub trait LogChunkStore: LogStoreChunkRead + LogStoreChunkWrite + Send + Sync + 'static {}
 impl<T: LogStoreChunkRead + LogStoreChunkWrite + Send + Sync + 'static> LogChunkStore for T {}
 
-pub trait Store: LogStoreRead + LogStoreChunkWrite + Send + Sync + 'static {}
-impl<T: LogStoreRead + LogStoreChunkWrite + Send + Sync + 'static> Store for T {}
+pub trait Store: LogStoreRead + LogStoreWrite + Send + Sync + 'static {}
+impl<T: LogStoreRead + LogStoreWrite + Send + Sync + 'static> Store for T {}
