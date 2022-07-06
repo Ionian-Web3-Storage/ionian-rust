@@ -1,16 +1,17 @@
-use crate::sync_manager::config::SyncManagerConfig;
+use crate::sync_manager::config::LogSyncConfig;
 use crate::sync_manager::log_entry_fetcher::LogEntryFetcher;
 use anyhow::Result;
 use jsonrpsee::tracing::error;
 use shared_types::Transaction;
+use std::future::Future;
+use std::sync::Arc;
+use storage::log_store::Store;
 use task_executor::{ShutdownReason, TaskExecutor};
-use tokio::sync::mpsc::error::TryRecvError;
-use tokio::sync::mpsc::{
-    channel, unbounded_channel, Receiver, Sender, UnboundedReceiver, UnboundedSender,
-};
+use tokio::sync::broadcast::{channel as broadcast_channel, error::TryRecvError, Receiver, Sender};
+use tokio::sync::mpsc::{unbounded_channel, UnboundedSender};
 
-struct LogSyncManager {
-    config: SyncManagerConfig,
+pub struct LogSyncManager {
+    config: LogSyncConfig,
     log_fetcher: LogEntryFetcher,
 
     next_tx_seq: u64,
@@ -18,48 +19,55 @@ struct LogSyncManager {
 }
 
 impl LogSyncManager {
-    #[allow(unused)]
-    pub async fn spawn(
-        config: SyncManagerConfig,
+    pub fn spawn(
+        config: LogSyncConfig,
         executor: TaskExecutor,
-        start_tx_seq: u64,
-    ) -> Result<(UnboundedReceiver<Transaction>, Sender<()>)> {
-        let log_fetcher =
-            LogEntryFetcher::new(&config.rpc_endpoint_url, config.contract_address).await?;
-        let (signal_tx, signal_rx) = channel(1);
-        let mut log_sync_manager = Self {
-            config,
-            log_fetcher,
-            next_tx_seq: start_tx_seq,
-            stop_rx: signal_rx,
-        };
-        let (tx, rx) = unbounded_channel();
-        let mut shutdown_sender = executor.shutdown_sender();
+        store: Arc<dyn Store>,
+    ) -> Result<Sender<()>> {
+        let (signal_tx, signal_rx) = broadcast_channel(1);
+        let next_tx_seq = store.next_tx_seq()?;
+        let (tx, mut rx) = unbounded_channel();
+
+        // Spawn the task to sync log entries from the blockchain.
         executor.spawn(
-            async move {
+            run_and_log(executor.shutdown_sender(), async move {
+                let log_fetcher =
+                    LogEntryFetcher::new(&config.rpc_endpoint_url, config.contract_address).await?;
+                let mut log_sync_manager = Self {
+                    config,
+                    log_fetcher,
+                    next_tx_seq,
+                    stop_rx: signal_rx,
+                };
+
                 // TODO: Do we need to notify that the recover process completes?
-                if let Err(e) = log_sync_manager
-                    .fetch_to_end(tx.clone(), start_tx_seq)
-                    .await
-                {
-                    error!("log sync recovery failure: e={:?}", e);
-                    shutdown_sender
-                        .try_send(ShutdownReason::Failure("log sync recovery failure"))
-                        .expect("shutdown send error");
-                }
-                if let Err(e) = log_sync_manager.sync(tx).await {
-                    error!("log sync failure: e={:?}", e);
-                    shutdown_sender
-                        .try_send(ShutdownReason::Failure("log sync failure"))
-                        .expect("shutdown send error");
-                }
-            },
+                log_sync_manager
+                    .fetch_to_end(tx.clone(), next_tx_seq)
+                    .await?;
+                log_sync_manager.sync(tx).await?;
+                Ok(())
+            }),
             "log_sync",
         );
-        Ok((rx, signal_tx))
+
+        // Spawn the task to persist the downloaded log entries.
+        let mut stop_rx = signal_tx.subscribe();
+        executor.spawn(
+            run_and_log(executor.shutdown_sender(), async move {
+                while let Some(tx) = rx.recv().await {
+                    if stop_rx.try_recv() != Err(TryRecvError::Empty) {
+                        break;
+                    }
+                    store.put_tx(tx)?;
+                }
+                Ok(())
+            }),
+            "log_write",
+        );
+        Ok(signal_tx)
     }
 
-    pub async fn fetch_to_end(
+    async fn fetch_to_end(
         &mut self,
         sender: UnboundedSender<Transaction>,
         start_tx_seq: u64,
@@ -81,7 +89,7 @@ impl LogSyncManager {
         Ok(())
     }
 
-    pub async fn sync(&mut self, sender: UnboundedSender<Transaction>) -> Result<()> {
+    async fn sync(&mut self, sender: UnboundedSender<Transaction>) -> Result<()> {
         loop {
             if self.stop_rx.try_recv() != Err(TryRecvError::Empty) {
                 return Ok(());
@@ -92,7 +100,17 @@ impl LogSyncManager {
     }
 }
 
-mod config;
+async fn run_and_log(
+    mut shutdown_sender: futures::channel::mpsc::Sender<ShutdownReason>,
+    f: impl Future<Output = Result<()>> + Send + 'static,
+) {
+    if let Err(e) = f.await {
+        error!("log sync failure: e={:?}", e);
+        shutdown_sender
+            .try_send(ShutdownReason::Failure("log sync failure"))
+            .expect("shutdown send error");
+    }
+}
+
+pub(crate) mod config;
 mod log_entry_fetcher;
-#[tokio::test]
-async fn test_recover() {}

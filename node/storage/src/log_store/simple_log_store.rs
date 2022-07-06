@@ -565,6 +565,16 @@ impl LogStoreRead for SimpleLogStore {
             .has_key(COL_TX_COMPLETED, &tx_seq.to_be_bytes())
             .map_err(Into::into)
     }
+
+    fn next_tx_seq(&self) -> Result<u64> {
+        // TODO: `kvdb` and `kvdb-rocksdb` does not support `seek_to_last` yet.
+        // We'll need to fork it or use another wrapper for a better performance in this.
+        self.kvdb
+            .iter(COL_TX)
+            .last()
+            .map(|(k, _)| decode_tx_seq(k.as_ref()).map(|seq| seq + 1))
+            .unwrap_or(Ok(0))
+    }
 }
 
 fn chunk_key(tx_seq: u64, index: usize) -> [u8; CHUNK_KEY_SIZE] {

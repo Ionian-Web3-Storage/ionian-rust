@@ -8,25 +8,25 @@ use jsonrpsee::core::client::Subscription;
 // TODO: Define an abstraction suitable for other chains.
 #[async_trait]
 pub trait EvmRpcProxy {
-    async fn call(&self, to: Address, data: Bytes) -> Result<Bytes>;
+    async fn call(&self, to: ContractAddress, data: Bytes) -> Result<Bytes>;
 
     async fn sub_events(&self, filter: SubFilter) -> Subscription<SubEvent>;
 }
 
-pub type Address = H160;
+pub type ContractAddress = H160;
 
 pub type Topic = H256;
 
 #[allow(unused)]
 pub struct SubFilter {
-    to: Option<Address>,
+    to: Option<ContractAddress>,
     topics: Vec<Topic>,
 }
 
 #[allow(unused)]
 pub struct SubEvent {
     /// Address
-    pub address: Address,
+    pub address: ContractAddress,
 
     /// Topics
     pub topics: Vec<Topic>,

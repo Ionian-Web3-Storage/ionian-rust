@@ -1,4 +1,4 @@
-use crate::rpc_proxy::{Address, EvmRpcProxy, SubEvent, SubFilter};
+use crate::rpc_proxy::{ContractAddress, EvmRpcProxy, SubEvent, SubFilter};
 use anyhow::Result;
 use async_trait::async_trait;
 use cfx_addr::{cfx_addr_encode, EncodingOptions, Network};
@@ -22,7 +22,7 @@ impl CfxClient {
 
 #[async_trait]
 impl EvmRpcProxy for CfxClient {
-    async fn call(&self, to: Address, data: Bytes) -> Result<Bytes> {
+    async fn call(&self, to: ContractAddress, data: Bytes) -> Result<Bytes> {
         let to_addr = cfx_addr_encode(to.as_bytes(), self.network, EncodingOptions::Simple)?;
         let request = CallRequest {
             to: Some(to_addr),

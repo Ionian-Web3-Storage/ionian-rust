@@ -32,6 +32,8 @@ pub trait LogStoreRead: LogStoreChunkRead {
     ) -> Result<Option<ChunkArrayWithProof>>;
 
     fn check_tx_completed(&self, tx_seq: u64) -> Result<bool>;
+
+    fn next_tx_seq(&self) -> Result<u64>;
 }
 
 pub trait LogStoreChunkRead {
@@ -86,5 +88,5 @@ pub trait LogStoreChunkWrite {
 pub trait LogChunkStore: LogStoreChunkRead + LogStoreChunkWrite + Send + Sync + 'static {}
 impl<T: LogStoreChunkRead + LogStoreChunkWrite + Send + Sync + 'static> LogChunkStore for T {}
 
-pub trait Store: LogStoreRead + LogStoreChunkWrite + Send + Sync + 'static {}
-impl<T: LogStoreRead + LogStoreChunkWrite + Send + Sync + 'static> Store for T {}
+pub trait Store: LogStoreRead + LogStoreWrite + Send + Sync + 'static {}
+impl<T: LogStoreRead + LogStoreWrite + Send + Sync + 'static> Store for T {}

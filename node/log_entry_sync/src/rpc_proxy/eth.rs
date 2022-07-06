@@ -1,4 +1,4 @@
-use crate::rpc_proxy::{Address, EvmRpcProxy, SubEvent, SubFilter};
+use crate::rpc_proxy::{ContractAddress, EvmRpcProxy, SubEvent, SubFilter};
 use async_trait::async_trait;
 use ethers::prelude::{Bytes, Middleware, Provider, Ws};
 use ethers::types::TransactionRequest;
@@ -18,7 +18,7 @@ impl EthClient {
 
 #[async_trait]
 impl EvmRpcProxy for EthClient {
-    async fn call(&self, to: Address, data: Bytes) -> anyhow::Result<Bytes> {
+    async fn call(&self, to: ContractAddress, data: Bytes) -> anyhow::Result<Bytes> {
         let request = TransactionRequest::new().to(to).data(data);
         Ok(self.client.call(&request.into(), None).await?)
     }

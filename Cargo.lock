@@ -2810,6 +2810,7 @@ dependencies = [
 name = "ionian_node"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "clap",
  "ctrlc",
  "error-chain",
@@ -2817,6 +2818,7 @@ dependencies = [
  "futures",
  "ionian_version",
  "libp2p",
+ "log_entry_sync",
  "miner",
  "network",
  "router",
@@ -3919,9 +3921,11 @@ dependencies = [
  "cfx_rpc_client",
  "ethereum-types 0.12.1",
  "ethers",
+ "futures",
  "jsonrpsee",
  "serde_json",
  "shared_types",
+ "storage",
  "task_executor",
  "tokio",
 ]

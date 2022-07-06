@@ -1,5 +1,5 @@
 use crate::contracts::IonianLogContract;
-use crate::rpc_proxy::Address;
+use crate::rpc_proxy::ContractAddress;
 use anyhow::{anyhow, Result};
 use ethers::prelude::{Http, Provider};
 use shared_types::Transaction;
@@ -10,7 +10,7 @@ pub struct LogEntryFetcher {
 }
 
 impl LogEntryFetcher {
-    pub async fn new(url: &str, contract_address: Address) -> Result<Self> {
+    pub async fn new(url: &str, contract_address: ContractAddress) -> Result<Self> {
         let contract = IonianLogContract::new(contract_address, Arc::new(Provider::try_from(url)?));
         // TODO: `error` types are removed from the ABI json file.
         Ok(Self { contract })

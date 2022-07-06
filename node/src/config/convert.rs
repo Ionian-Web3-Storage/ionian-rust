@@ -1,6 +1,7 @@
 #![allow(clippy::field_reassign_with_default)]
 
 use crate::IonianConfig;
+use log_entry_sync::{ContractAddress, LogSyncConfig};
 use network::NetworkConfig;
 use rpc::RPCConfig;
 
@@ -54,5 +55,16 @@ impl IonianConfig {
             enabled: self.rpc_enabled,
             listen_address,
         })
+    }
+
+    pub fn log_sync_config(&self) -> Result<LogSyncConfig, String> {
+        let contract_address = self
+            .log_contract_address
+            .parse::<ContractAddress>()
+            .map_err(|e| format!("Unable to parse log_contract_address: {:?}", e))?;
+        Ok(LogSyncConfig::new(
+            self.blockchain_rpc_endpoint.clone(),
+            contract_address,
+        ))
     }
 }
