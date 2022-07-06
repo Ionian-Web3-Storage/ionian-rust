@@ -154,7 +154,7 @@ impl Inner {
         if self.total_chunks > cached_segs_chunks {
             self.total_chunks -= cached_segs_chunks;
         }
-        
+
         if self.total_writings > 0 {
             self.total_writings -= 1;
         }
@@ -174,7 +174,7 @@ impl Inner {
         if self.total_chunks > cached_segs_chunks {
             self.total_chunks -= cached_segs_chunks;
         }
-        
+
         if self.total_writings > 0 {
             self.total_writings -= 1;
         }
@@ -284,10 +284,11 @@ impl MemoryChunkPool {
             }
         }
 
-        let all_uploaded = self.inner
-            .lock()
-            .await
-            .on_write_succeeded(&root, num_chunks, pending_seg_chunks);
+        let all_uploaded =
+            self.inner
+                .lock()
+                .await
+                .on_write_succeeded(&root, num_chunks, pending_seg_chunks);
 
         // Notify to finalize transaction asynchronously.
         if all_uploaded {
