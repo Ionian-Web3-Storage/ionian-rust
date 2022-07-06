@@ -67,7 +67,10 @@ impl RpcServer for RpcServerImpl {
         let log_store = self.log_store()?;
         if let Some(tx_seq) = log_store.get_tx_seq_by_data_root(&data_root)? {
             if log_store.check_tx_completed(tx_seq)? {
-                return Ok(());
+                return Err(error::invalid_params(
+                    "data_root",
+                    "already uploaded and finalized",
+                ));
             }
         }
 

@@ -151,13 +151,10 @@ impl Inner {
         file.writing = false;
         file.next_index += cur_seg_chunks;
 
-        if self.total_chunks > cached_segs_chunks {
-            self.total_chunks -= cached_segs_chunks;
-        }
-
-        if self.total_writings > 0 {
-            self.total_writings -= 1;
-        }
+        assert!(self.total_chunks >= cached_segs_chunks);
+        self.total_chunks -= cached_segs_chunks;
+        assert!(self.total_writings > 0);
+        self.total_writings -= 1;
 
         // All chunks of file written into store.
         file.total_chunks > 0 && file.next_index == file.total_chunks
@@ -171,13 +168,10 @@ impl Inner {
 
         file.writing = false;
 
-        if self.total_chunks > cached_segs_chunks {
-            self.total_chunks -= cached_segs_chunks;
-        }
-
-        if self.total_writings > 0 {
-            self.total_writings -= 1;
-        }
+        assert!(self.total_chunks >= cached_segs_chunks);
+        self.total_chunks -= cached_segs_chunks;
+        assert!(self.total_writings > 0);
+        self.total_writings -= 1;
     }
 }
 
@@ -248,6 +242,10 @@ impl MemoryChunkPool {
 
         // Try to update file with transaction for the first 2 segments,
         // in case that log entry already retrieved from blockchain.
+        //
+        // Note, the log entry may be retrieved immediately before the mutex acquired to `cache_or_write_segment`.
+        // So, the `maybe_tx` below may be `None` for the 1st segment. When the 2nd segment arrived, try again to
+        // update the log entry info from db.
         let mut maybe_tx = None;
         if start_index <= 1 {
             maybe_tx = self.get_tx_by_root(&root).await?;
@@ -333,7 +331,13 @@ impl MemoryChunkPool {
         let mut inner = self.inner.lock().await;
 
         let file = inner.files.remove(root)?;
-        inner.total_chunks -= file.total_chunks;
+        if let Some(ref segments) = file.segments {
+            for seg in segments.iter() {
+                let seg_chunks = seg.data.len() / CHUNK_SIZE;
+                assert!(inner.total_chunks >= seg_chunks);
+                inner.total_chunks -= seg_chunks;
+            }
+        }
 
         Some(file)
     }
