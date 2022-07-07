@@ -173,6 +173,34 @@ impl Inner {
         assert!(self.total_writings > 0);
         self.total_writings -= 1;
     }
+
+    /// If log entry retrieved timely, we should update the transaction for the first 2 segments.
+    fn requires_to_update_tx_before_cache(&self, root: &DataRoot, start_index: usize) -> bool {
+        if start_index == 0 {
+            return true;
+        }
+
+        // Must be updated by `update_file_info` by log entry poller.
+        if start_index > 1 {
+            return false;
+        }
+
+        let file = match self.files.get(root) {
+            Some(f) => f,
+            None => return false,
+        };
+
+        // Already updated
+        if file.total_chunks > 0 {
+            return false;
+        }
+
+        // Only required for the 2nd segment.
+        match &file.segments {
+            Some(segs) => segs.len() == 1,
+            None => false,
+        }
+    }
 }
 
 /// Caches data chunks in memory before the entire file uploaded to storage node
@@ -247,7 +275,12 @@ impl MemoryChunkPool {
         // So, the `maybe_tx` below may be `None` for the 1st segment. When the 2nd segment arrived, try again to
         // update the log entry info from db.
         let mut maybe_tx = None;
-        if start_index <= 1 {
+        if self
+            .inner
+            .lock()
+            .await
+            .requires_to_update_tx_before_cache(&root, start_index)
+        {
             maybe_tx = self.get_tx_by_root(&root).await?;
         }
 
