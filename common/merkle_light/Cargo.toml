@@ -17,9 +17,6 @@ categories    = ["data-structures", "cryptography"]
 
 [dependencies]
 
-ring = { version = "^0.16.20", optional = true }
-rust-crypto = { version = "^0.2.36", optional = true }
-rand = { version = "^0.8.5", optional = true }
 rayon = "1.5.3"
 
 [dev-dependencies]
@@ -27,9 +24,6 @@ rayon = "1.5.3"
 [features]
 default = ["std"]
 std = []
-bitcoin = ["ring", "rust-crypto"]
-chaincore = ["rust-crypto"]
-crypto_bench = ["rust-crypto", "ring", "rand"]
 
 [package.metadata.release]
 sign-commit = true
