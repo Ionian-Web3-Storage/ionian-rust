@@ -63,6 +63,17 @@ impl RpcServer for RpcServerImpl {
     ) -> Result<(), jsonrpsee::core::Error> {
         debug!("ionian_uploadSegment()");
 
+        // Transaction already finalized for the specified file data root.
+        let log_store = self.log_store()?;
+        if let Some(tx_seq) = log_store.get_tx_seq_by_data_root(&data_root)? {
+            if log_store.check_tx_completed(tx_seq)? {
+                return Err(error::invalid_params(
+                    "data_root",
+                    "already uploaded and finalized",
+                ));
+            }
+        }
+
         // TODO(qhz): unmarshal and validate proof
 
         // Chunk pool will validate the data size.
@@ -76,7 +87,7 @@ impl RpcServer for RpcServerImpl {
     #[tracing::instrument(skip(self), err)]
     async fn download_segment(
         &self,
-        _data_root: DataRoot,
+        data_root: DataRoot,
         start_index: u32,
         end_index: u32,
     ) -> Result<Option<Vec<u8>>, jsonrpsee::core::Error> {
@@ -96,9 +107,15 @@ impl RpcServer for RpcServerImpl {
             ));
         }
 
-        // TODO(qhz): enhance LogStoreChunkRead trait to retrieve chunks by data root.
-        let maybe_segment = self.log_store()?.get_chunks_by_tx_and_index_range(
-            1,
+        let log_store = self.log_store()?;
+
+        let tx_seq = match log_store.get_tx_seq_by_data_root(&data_root)? {
+            Some(seq) => seq,
+            None => return Ok(None),
+        };
+
+        let maybe_segment = log_store.get_chunks_by_tx_and_index_range(
+            tx_seq,
             start_index as usize,
             end_index as usize,
         )?;

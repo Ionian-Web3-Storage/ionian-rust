@@ -88,7 +88,7 @@ impl NetworkGlobals {
     }
 
     /// TESTING ONLY. Build a dummy NetworkGlobals instance.
-    #[cfg(test)]
+    #[allow(dead_code)]
     pub fn new_test_globals() -> NetworkGlobals {
         use crate::CombinedKeyExt;
         let keypair = libp2p::identity::Keypair::generate_secp256k1();
