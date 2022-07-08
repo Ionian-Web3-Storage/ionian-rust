@@ -1,8 +1,11 @@
 use anyhow::{anyhow, bail, Result};
 use async_lock::Mutex;
+use hashlink::LinkedHashMap;
 use shared_types::{ChunkArray, DataRoot, Transaction, CHUNK_SIZE};
-use std::collections::{HashMap, VecDeque};
+use std::collections::VecDeque;
+use std::ops::Add;
 use std::sync::Arc;
+use std::time::{Duration, Instant};
 use storage::log_store::Store;
 use tokio::sync::mpsc::UnboundedSender;
 
@@ -14,10 +17,10 @@ use tokio::sync::mpsc::UnboundedSender;
 const MAX_CACHED_CHUNKS_PER_FILE: usize = 1024 * 1024; // 256M
 const MAX_CACHED_CHUNKS_ALL: usize = 1024 * 1024 * 1024 / CHUNK_SIZE; // 1G
 const MAX_WRITINGS: usize = 16;
+const EXPIRATION_TIME: Duration = Duration::from_secs(300); // 5 minutes
 
 /// Used to cache chunks in memory pool and persist into db once log entry
 /// retrieved from blockchain.
-#[derive(Default)]
 pub struct MemoryCachedFile {
     /// Indicate whether a thread is writing chunks into store.
     writing: bool,
@@ -29,6 +32,21 @@ pub struct MemoryCachedFile {
     total_chunks: usize,
     /// Transaction seq that used to write chunks into store.
     pub tx_seq: u64,
+    /// Used for garbage collection.
+    expired_at: Instant,
+}
+
+impl Default for MemoryCachedFile {
+    fn default() -> Self {
+        MemoryCachedFile {
+            writing: false,
+            segments: None,
+            next_index: 0,
+            total_chunks: 0,
+            tx_seq: 0,
+            expired_at: Instant::now().add(EXPIRATION_TIME),
+        }
+    }
 }
 
 impl MemoryCachedFile {
@@ -47,7 +65,7 @@ impl MemoryCachedFile {
 #[derive(Default)]
 struct Inner {
     /// All cached files.
-    files: HashMap<DataRoot, MemoryCachedFile>,
+    files: LinkedHashMap<DataRoot, MemoryCachedFile>,
     /// Total number of chunks that cached in the memory pool.
     total_chunks: usize,
     /// Total number of threads that are writing chunks into store.
@@ -55,6 +73,34 @@ struct Inner {
 }
 
 impl Inner {
+    fn update_expiration_time(&mut self, root: &DataRoot) {
+        if let Some(file) = self.files.to_back(root) {
+            file.expired_at = Instant::now().add(EXPIRATION_TIME);
+        }
+    }
+
+    fn garbage_collect(&mut self) {
+        while let Some((_, file)) = self.files.front() {
+            if file.expired_at < Instant::now() {
+                return;
+            }
+
+            if let Some((_, f)) = self.files.pop_front() {
+                self.update_total_chunks_when_remove_file(&f);
+            }
+        }
+    }
+
+    fn update_total_chunks_when_remove_file(&mut self, file: &MemoryCachedFile) {
+        if let Some(ref segments) = file.segments {
+            for seg in segments.iter() {
+                let seg_chunks = seg.data.len() / CHUNK_SIZE;
+                assert!(self.total_chunks >= seg_chunks);
+                self.total_chunks -= seg_chunks;
+            }
+        }
+    }
+
     /// Try to cache the segment into memory pool if log entry not retrieved from blockchain yet.
     /// Otherwise, return segments to write into store asynchronously for different files.
     fn cache_or_write_segment(
@@ -64,7 +110,7 @@ impl Inner {
         start_index: usize,
         maybe_tx: Option<Transaction>,
     ) -> Result<Option<(u64, VecDeque<ChunkArray>)>> {
-        let file = self.files.entry(root).or_default();
+        let file = self.files.entry(root).or_insert_with(Default::default);
 
         // Segment already uploaded.
         if start_index < file.next_index {
@@ -266,6 +312,23 @@ impl MemoryChunkPool {
         segment: Vec<u8>,
         start_index: usize,
     ) -> Result<()> {
+        // Lazy GC when new chunks added.
+        self.inner.lock().await.garbage_collect();
+
+        self.add_chunks_inner(root, segment, start_index).await?;
+
+        // Update expiration time when succeeded.
+        self.inner.lock().await.update_expiration_time(&root);
+
+        Ok(())
+    }
+
+    async fn add_chunks_inner(
+        &self,
+        root: DataRoot,
+        segment: Vec<u8>,
+        start_index: usize,
+    ) -> Result<()> {
         let num_chunks = self.validate_segment_size(&segment, start_index)?;
 
         // Try to update file with transaction for the first 2 segments,
@@ -364,17 +427,8 @@ impl MemoryChunkPool {
         let mut inner = self.inner.lock().await;
 
         let file = inner.files.remove(root)?;
-        if let Some(ref segments) = file.segments {
-            for seg in segments.iter() {
-                let seg_chunks = seg.data.len() / CHUNK_SIZE;
-                assert!(inner.total_chunks >= seg_chunks);
-                inner.total_chunks -= seg_chunks;
-            }
-        }
+        inner.update_total_chunks_when_remove_file(&file);
 
         Some(file)
     }
-
-    // TODO(qhz): expire garbage items periodically or at the beginning of other methods.
-    // What a pity, there is no double linked list in standard lib.
 }
