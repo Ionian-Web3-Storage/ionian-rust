@@ -39,7 +39,7 @@ fn create_temp_log_store() -> TempSimpleLogStore {
 #[test]
 fn test_put_get() {
     let store = SimpleLogStore::memorydb().unwrap();
-    let chunk_count = store.chunk_batch_size * 2 + 1;
+    let chunk_count = store.chunk_batch_size + store.chunk_batch_size / 2 - 1;
     let data_size = CHUNK_SIZE * chunk_count;
     let mut data = vec![0u8; data_size];
     for i in 0..chunk_count {

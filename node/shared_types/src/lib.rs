@@ -1,7 +1,7 @@
 use anyhow::{anyhow, bail, Result};
 use ethereum_types::H256;
 use merkle_light::hash::{Algorithm, Hashable};
-use merkle_light::merkle::{log2_pow2, next_pow2};
+use merkle_light::merkle::next_pow2;
 use merkle_light::proof::Proof;
 use merkle_tree::{RawLeafSha3Algorithm, LEAF};
 use ssz_derive::{Decode as DeriveDecode, Encode as DeriveEncode};
@@ -59,13 +59,7 @@ impl ChunkProof {
         position: usize,
         total_chunk_count: usize,
     ) -> Result<bool> {
-        let tree_depth = log2_pow2(next_pow2(total_chunk_count));
-        let mut proof_position = 0;
-        for (i, is_left) in self.path.iter().rev().enumerate() {
-            if !is_left {
-                proof_position += 1 << (tree_depth - 1 - i);
-            }
-        }
+        let proof_position = self.position(total_chunk_count);
         if proof_position != position {
             bail!(
                 "wrong position: proof_pos={} provided={}",
@@ -95,6 +89,22 @@ impl ChunkProof {
             ));
         }
         Ok(proof.validate::<RawLeafSha3Algorithm>())
+    }
+
+    fn position(&self, total_chunk_count: usize) -> usize {
+        let mut left_chunk_count = total_chunk_count;
+        let mut proof_position = 0;
+        // TODO: After the first `is_left == true`, the tree depth is fixed.
+        for is_left in self.path.iter().rev() {
+            let subtree_size = next_pow2(left_chunk_count) >> 1;
+            if !is_left {
+                proof_position += subtree_size;
+                left_chunk_count -= subtree_size;
+            } else {
+                left_chunk_count = subtree_size;
+            }
+        }
+        proof_position
     }
 }
 
