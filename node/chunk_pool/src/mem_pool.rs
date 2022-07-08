@@ -81,12 +81,13 @@ impl Inner {
 
     fn garbage_collect(&mut self) {
         while let Some((_, file)) = self.files.front() {
-            if file.expired_at < Instant::now() {
+            if file.expired_at > Instant::now() {
                 return;
             }
 
-            if let Some((_, f)) = self.files.pop_front() {
+            if let Some((r, f)) = self.files.pop_front() {
                 self.update_total_chunks_when_remove_file(&f);
+                debug!("Garbage collected for file {}", r);
             }
         }
     }

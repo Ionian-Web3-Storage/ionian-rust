@@ -1,3 +1,6 @@
+#[macro_use]
+extern crate tracing;
+
 mod handler;
 mod mem_pool;
 

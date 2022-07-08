@@ -547,6 +547,7 @@ dependencies = [
  "shared_types",
  "storage",
  "tokio",
+ "tracing",
 ]
 
 [[package]]
