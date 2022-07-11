@@ -54,14 +54,38 @@ impl Proof {
         }
     }
 
-    pub fn validate(
+    pub fn validate_chunk(
         &self,
         chunk: &Chunk,
         root: &DataRoot,
         position: usize,
         total_chunk_count: usize,
     ) -> Result<bool> {
-        let proof = DataProof::new(self.lemma.iter().map(|e| e.0).collect(), self.path.clone());
+        let mut h = RawLeafSha3Algorithm::default();
+        chunk.hash(&mut h);
+        let chunk_hash = h.hash();
+        h.reset();
+        let leaf_hash = h.leaf(chunk_hash);
+        self.validate(&leaf_hash, root, position, total_chunk_count)
+    }
+
+    pub fn validate(
+        &self,
+        leaf_hash: &[u8; 32],
+        root: &DataRoot,
+        position: usize,
+        leaf_count: usize,
+    ) -> Result<bool> {
+        let proof_position = self.position(leaf_count)?;
+        if proof_position != position {
+            bail!(
+                "wrong position: proof_pos={} provided={}",
+                proof_position,
+                position
+            );
+        }
+
+        let proof: DataProof = self.try_into()?;
 
         if !proof.validate::<RawLeafSha3Algorithm>() {
             debug!("Proof validate fails");
@@ -75,26 +99,13 @@ impl Proof {
                 root.0
             );
         }
-        let proof_position = self.position(total_chunk_count)?;
-        if proof_position != position {
-            bail!(
-                "wrong position: proof_pos={} provided={}",
-                proof_position,
-                position
-            );
-        }
 
-        let mut h = RawLeafSha3Algorithm::default();
-        chunk.hash(&mut h);
-        let chunk_hash = h.hash();
-        h.reset();
-        let leaf_hash = h.leaf(chunk_hash);
-        if proof.item() != leaf_hash {
+        if proof.item() != *leaf_hash {
             bail!(
-                "data hash mismatch: \n leaf_hash={:?} \n proof_item={:?} \n chunk_hash={:?}",
+                "data hash mismatch: \n leaf_hash={:?} \n proof_item={:?} \n leaf_hash={:?}",
                 leaf_hash,
                 proof.item(),
-                chunk_hash
+                leaf_hash
             );
         }
 
@@ -106,7 +117,7 @@ impl Proof {
         let mut proof_position = 0;
         // TODO: After the first `is_left == true`, the tree depth is fixed.
         for is_left in self.path.iter().rev() {
-            if left_chunk_count == 1 {
+            if left_chunk_count <= 1 {
                 bail!(
                     "Proof path too long for a tree size: path={:?}, size={}",
                     self.path,
@@ -129,6 +140,23 @@ impl Proof {
             );
         }
         Ok(proof_position)
+    }
+}
+
+impl TryFrom<&Proof> for DataProof {
+    type Error = anyhow::Error;
+
+    fn try_from(value: &Proof) -> std::result::Result<Self, Self::Error> {
+        if (value.lemma.len() == 1 && value.path.is_empty())
+            || (value.lemma.len() > 2 && value.lemma.len() == value.path.len() + 2)
+        {
+            Ok(DataProof::new(
+                value.lemma.iter().map(|e| e.0).collect(),
+                value.path.clone(),
+            ))
+        } else {
+            bail!("Invalid proof: proof={:?}", value)
+        }
     }
 }
 
@@ -155,7 +183,7 @@ impl ChunkWithProof {
         total_chunk_count: usize,
     ) -> Result<bool> {
         self.proof
-            .validate(&self.chunk, root, position, total_chunk_count)
+            .validate_chunk(&self.chunk, root, position, total_chunk_count)
     }
 }
 
@@ -173,7 +201,7 @@ impl ChunkArrayWithProof {
             .chunks
             .first_chunk()
             .ok_or_else(|| anyhow!("no start chunk"))?;
-        if !self.start_proof.validate(
+        if !self.start_proof.validate_chunk(
             &start_chunk,
             root,
             self.chunks.start_index as usize,
@@ -185,7 +213,7 @@ impl ChunkArrayWithProof {
             .chunks
             .last_chunk()
             .ok_or_else(|| anyhow!("no last chunk"))?;
-        if !self.end_proof.validate(
+        if !self.end_proof.validate_chunk(
             &end_chunk,
             root,
             self.chunks.start_index as usize + self.chunks.data.len() / CHUNK_SIZE - 1,
