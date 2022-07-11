@@ -39,7 +39,7 @@ impl<N, Req, Res> Sender<N, Req, Res> {
             .map_err(|e| Error::SendError(e))
     }
 
-    // TODO(thegaram): consider adding a default timeout logic here
+    // TODO(ionian-dev): consider adding a default timeout logic here
     pub async fn request(&self, request: Req) -> Result<Res, Error<N, Req, Res>> {
         let (sender, receiver) = oneshot::channel();
 

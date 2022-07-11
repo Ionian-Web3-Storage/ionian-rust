@@ -214,7 +214,7 @@ impl ProtocolId {
             ),
             Protocol::DataByHash => {
                 // RpcLimits::new(*DATA_BY_HASH_REQUEST_MIN, *DATA_BY_HASH_REQUEST_MAX)
-                // TODO(thegaram)
+                // TODO(ionian-dev)
                 RpcLimits::new(1, *DATA_BY_HASH_REQUEST_MAX)
             }
             Protocol::GetChunks => RpcLimits::new(
@@ -238,7 +238,7 @@ impl ProtocolId {
                 <Ping as Encode>::ssz_fixed_len(),
             ),
 
-            // TODO(thegaram): not fixed size?
+            // TODO(ionian-dev): not fixed size?
             Protocol::DataByHash => RpcLimits::new(
                 <IonianData as Encode>::ssz_fixed_len(),
                 <IonianData as Encode>::ssz_fixed_len(),

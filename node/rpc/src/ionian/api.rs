@@ -7,9 +7,6 @@ pub trait Rpc {
     #[method(name = "getStatus")]
     async fn get_status(&self) -> Result<Status, jsonrpsee::core::Error>;
 
-    #[method(name = "sendStatus")]
-    async fn send_status(&self, data: u64) -> Result<(), jsonrpsee::core::Error>;
-
     #[method(name = "uploadSegment")]
     async fn upload_segment(
         &self,

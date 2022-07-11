@@ -3,8 +3,11 @@ use network::{
     rpc::GetChunksRequest, rpc::RPCResponseErrorCode, types::AnnounceFile, Multiaddr,
     NetworkGlobals, NetworkMessage, PeerId, PeerRequestId, PubsubMessage, SyncId as RequestId,
 };
-use shared_types::{ChunkArrayWithProof, ChunkProof};
-use std::{collections::HashMap, sync::Arc};
+use shared_types::{bytes_to_chunks, ChunkArrayWithProof};
+use std::{
+    collections::{hash_map::Entry, HashMap},
+    sync::Arc,
+};
 use storage::log_store::Store as LogStore;
 use storage_async::Store;
 use tokio::sync::mpsc;
@@ -25,7 +28,6 @@ pub enum SyncMessage {
 
     StartSyncFile {
         tx_seq: u64,
-        num_chunks: usize,
     },
 
     RequestChunks {
@@ -168,8 +170,8 @@ impl SyncService {
                 self.on_chunks_response(peer_id, request_id, response).await;
             }
 
-            SyncMessage::StartSyncFile { tx_seq, num_chunks } => {
-                self.on_start_sync_file(tx_seq, num_chunks);
+            SyncMessage::StartSyncFile { tx_seq } => {
+                self.on_start_sync_file(tx_seq).await;
             }
 
             SyncMessage::RpcError {
@@ -210,7 +212,7 @@ impl SyncService {
         info!(%peer_id, "Peer connected");
 
         for controller in self.controllers.values_mut() {
-            // TODO(thegaram): only update controllers that need it?
+            // TODO(ionian-dev): only update controllers that need it?
             controller.on_peer_connected(peer_id);
             controller.transition();
         }
@@ -233,7 +235,7 @@ impl SyncService {
     ) {
         info!("Received GetChunks request: {:?}", request);
 
-        // TODO(thegaram): can we do this validation in the network layer?
+        // TODO(ionian-dev): can we do this validation in the network layer?
         if request.index_start >= request.index_end {
             self.ctx.send(NetworkMessage::SendErrorResponse {
                 peer_id,
@@ -243,23 +245,17 @@ impl SyncService {
             });
         }
 
-        // FIXME(thegaram): use get_chunks_with_proof_by_tx_and_index_range
-        // FIXME(thegaram): unload IO to worker
+        // TODO(ionian-dev): consider only serving chunks for files
+        // that we fully store.
+
         let result = self
             .store
-            .get_chunks_by_tx_and_index_range(
+            .get_chunks_with_proof_by_tx_and_index_range(
                 request.tx_seq,
                 request.index_start as usize,
                 request.index_end as usize,
             )
-            .await
-            .map(|maybe_chunks| {
-                maybe_chunks.map(|chunks| ChunkArrayWithProof {
-                    chunks,
-                    start_proof: ChunkProof::new_empty(),
-                    end_proof: ChunkProof::new_empty(),
-                })
-            });
+            .await;
 
         match result {
             Ok(Some(chunks)) => {
@@ -270,7 +266,7 @@ impl SyncService {
                 });
             }
             Ok(None) => {
-                // FIXME(thegaram): will this happen if the index is out-of-range,
+                // FIXME(ionian-dev): will this happen if the index is out-of-range,
                 // and/or if the data is only partially available on this node?
                 self.ctx.send(NetworkMessage::SendErrorResponse {
                     peer_id,
@@ -284,7 +280,7 @@ impl SyncService {
                     peer_id,
                     id: request_id,
                     error: RPCResponseErrorCode::ServerError,
-                    // FIXME(thegaram): it's probably best not to expose
+                    // FIXME(ionian-dev): it's probably best not to expose
                     // this to peers, but for now it's useful for debugging.
                     reason: format!("db error: {:?}", e),
                 });
@@ -333,14 +329,40 @@ impl SyncService {
         }
     }
 
-    fn on_start_sync_file(&mut self, tx_seq: u64, num_chunks: usize) {
+    async fn on_start_sync_file(&mut self, tx_seq: u64) {
         info!("Starting sync file for tx_seq={tx_seq}");
 
-        // TODO(thegaram): add `put_tx` and `finalize_tx` logic
+        let controller = match self.controllers.entry(tx_seq) {
+            Entry::Occupied(entry) => entry.into_mut(),
+            Entry::Vacant(entry) => {
+                let tx = match self.store.get_tx_by_seq_number(tx_seq).await {
+                    Ok(Some(tx)) => tx,
+                    res => {
+                        // TODO(ionian-dev): this is a silent failure, should we notify the caller?
+                        warn!(%tx_seq, "Unable to start sync file, transaction not found: {res:?}");
+                        return;
+                    }
+                };
 
-        let controller = self.controllers.entry(tx_seq).or_insert_with(|| {
-            SerialSyncController::new(tx_seq, num_chunks, self.ctx.clone(), self.store.clone())
-        });
+                let num_chunks = match usize::try_from(tx.size) {
+                    Ok(size) => bytes_to_chunks(size),
+                    Err(_) => {
+                        error!(%tx_seq, "Unexpected transaction size: {}", tx.size);
+                        return;
+                    }
+                };
+
+                let c = SerialSyncController::new(
+                    tx_seq,
+                    tx.data_merkle_root,
+                    num_chunks,
+                    self.ctx.clone(),
+                    self.store.clone(),
+                );
+
+                entry.insert(c)
+            }
+        };
 
         // trigger retry after failure
         if controller.is_failed() {
@@ -354,16 +376,12 @@ impl SyncService {
         info!(%tx_seq, "Received FindFile gossip");
 
         // check if we have it
-        // FIXME(thegaram): have a more approriate check
-        if !matches!(
-            self.store.get_chunk_by_tx_and_index(tx_seq, 0).await,
-            Ok(Some(_))
-        ) {
+        if !matches!(self.store.check_tx_completed(tx_seq).await, Ok(true)) {
             return;
         }
 
         // announce file
-        // TODO(thegaram): consider choosing a random listen address
+        // TODO(ionian-dev): consider choosing a random listen address
         let addr = match self.network_globals.listen_multiaddrs.read().first() {
             Some(addr) => addr.clone(),
             None => {
@@ -393,6 +411,6 @@ impl SyncService {
             controller.transition();
         }
 
-        // TODO(thegaram): gc old controllers
+        // TODO(ionian-dev): gc old controllers
     }
 }

@@ -46,7 +46,7 @@ impl ssz::Decode for WrappedMultiaddr {
     }
 
     fn from_ssz_bytes(bytes: &[u8]) -> Result<Self, ssz::DecodeError> {
-        // TODO(thegaram): limit length
+        // TODO(ionian-dev): limit length
         match Multiaddr::try_from(bytes.to_vec()) {
             Ok(addr) => Ok(WrappedMultiaddr(addr)),
             Err(_) => Err(ssz::DecodeError::BytesInvalid(

@@ -6,6 +6,7 @@ edition = "2021"
 [dependencies]
 anyhow = "1.0.58"
 clap = { version = "3.2.5", features = ["cargo"] }
+ctrlc = "3.2.2"
 error-chain = "0.12.4"
 exit-future = "0.2.0"
 futures = "0.3.21"
@@ -24,7 +25,6 @@ tokio-stream = { version = "0.1.9", features = ["sync"] }
 toml = "0.5.9"
 tracing = "0.1.35"
 tracing-subscriber = { version = "0.3.11", features = ["env-filter"] }
-ctrlc = "3.2.2"
 
 [dependencies.libp2p]
 version = "0.45.1"

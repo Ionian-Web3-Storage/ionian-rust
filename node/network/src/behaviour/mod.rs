@@ -476,7 +476,7 @@ impl<AppReqId: ReqId> Behaviour<AppReqId> {
     /// Sends a Ping request to the peer.
     fn ping(&mut self, peer_id: PeerId) {
         let ping = crate::rpc::Ping {
-            data: 1, // TODO(thegaram)
+            data: 1, // TODO(ionian-dev)
         };
         trace!(%peer_id, "Sending Ping");
         let id = RequestId::Behaviour;
@@ -487,7 +487,7 @@ impl<AppReqId: ReqId> Behaviour<AppReqId> {
     /// Sends a Pong response to the peer.
     fn pong(&mut self, id: PeerRequestId, peer_id: PeerId) {
         let ping = crate::rpc::Ping {
-            data: 1, // TODO(thegaram)
+            data: 1, // TODO(ionian-dev)
         };
         trace!(request_id = ?id.1, %peer_id, "Sending Pong");
         let event = RPCCodedResponse::Success(RPCResponse::Pong(ping));
@@ -580,7 +580,7 @@ where
                         self.add_event(BehaviourEvent::PubsubMessage {
                             id,
                             propagation_source,
-                            source: gs_msg.source.expect("message is signed"), // TODO(thegaram): is this guaranteed?
+                            source: gs_msg.source.expect("message is signed"), // TODO(ionian-dev): is this guaranteed?
                             topic: gs_msg.topic,
                             message: msg,
                         });

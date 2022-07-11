@@ -4,7 +4,7 @@ use network::{
     PubsubMessage, ReportSource, SyncId as RequestId,
 };
 use rand::seq::IteratorRandom;
-use shared_types::{ChunkArray, ChunkArrayWithProof, CHUNK_SIZE};
+use shared_types::{ChunkArray, ChunkArrayWithProof, DataRoot, CHUNK_SIZE};
 use std::{
     collections::HashMap,
     sync::Arc,
@@ -14,7 +14,7 @@ use storage_async::Store;
 
 const CHUNK_BATCH_SIZE: usize = 1024;
 
-// TODO(thegaram): set an appropriate request size
+// TODO(ionian-dev): set an appropriate request size
 const MAX_CHUNKS_TO_REQUEST: usize = CHUNK_BATCH_SIZE;
 
 const PEER_REQUEST_TIMEOUT: Duration = Duration::from_secs(5);
@@ -22,7 +22,7 @@ const DOWNLOAD_TIMEOUT: Duration = Duration::from_secs(5);
 const PEER_CONNECT_TIMEOUT: Duration = Duration::from_secs(5);
 const PEER_DISCONNECT_TIMEOUT: Duration = Duration::from_secs(5);
 
-// TODO(thegaram):
+// TODO(ionian-dev):
 // - parallel requests
 // - limit number of retries
 
@@ -107,7 +107,7 @@ impl SyncPeers {
                     // handle timeout
                     // Note: timeouts and other connection issues generate SwarmEvents,
                     // however, these are currently not propagated to the higher layers.
-                    // TODO(thegaram): consider handling connection failure events.
+                    // TODO(ionian-dev): consider handling connection failure events.
                     if info.since.elapsed() >= PEER_CONNECT_TIMEOUT {
                         warn!(%peer_id, "Peer connection timeout");
                         info.state = PeerState::Failed;
@@ -125,7 +125,7 @@ impl SyncPeers {
             }
         }
 
-        // TODO(thegaram): gc peers?
+        // TODO(ionian-dev): gc peers?
     }
 }
 
@@ -162,6 +162,9 @@ pub struct SerialSyncController {
     /// The transaction sequence number.
     tx_seq: u64,
 
+    /// The transaction data root.
+    data_root: DataRoot,
+
     /// The size of the file to be synced.
     num_chunks: usize,
 
@@ -184,12 +187,14 @@ pub struct SerialSyncController {
 impl SerialSyncController {
     pub(crate) fn new(
         tx_seq: u64,
+        data_root: DataRoot,
         num_chunks: usize,
         ctx: Arc<SyncNetworkContext>,
         store: Store,
     ) -> Self {
         SerialSyncController {
             tx_seq,
+            data_root,
             num_chunks,
             next_chunk: 0,
             state: SyncState::Idle,
@@ -216,7 +221,7 @@ impl SerialSyncController {
     pub fn reset(&mut self) {
         self.next_chunk = 0;
         self.state = SyncState::Idle;
-        // TODO(thegaram): reset peers?
+        // TODO(ionian-dev): reset peers?
     }
 
     fn try_find_peers(&mut self) {
@@ -274,7 +279,7 @@ impl SerialSyncController {
 
         let request = network::Request::GetChunks(GetChunksRequest {
             tx_seq: self.tx_seq,
-            // FIXME(thegaram): unify APIs with usize or u32
+            // FIXME(ionian-dev): unify APIs with usize or u32
             index_start: from_chunk as u32,
             index_end: to_chunk as u32,
         });
@@ -372,11 +377,17 @@ impl SerialSyncController {
             }
         };
 
-        // execute expensive validation steps
-        // TODO(thegaram): validate Merkle proofs
+        // validate Merkle proofs
+        // TODO(ionian-dev): consider doing this in a worker task
+        let validation_result = response.validate(&self.data_root, self.num_chunks);
+
+        if !matches!(validation_result, Ok(true)) {
+            self.ban_peer(from_peer_id, "Chunk array validation failed");
+            self.state = SyncState::AwaitingDownload;
+            return;
+        }
 
         // store in db
-        // FIXME(thegaram): do this in worker thread
         let result = self.store.put_chunks(self.tx_seq, response.chunks).await;
 
         // unexpected DB error while storing chunks
@@ -391,7 +402,8 @@ impl SerialSyncController {
 
         // check if this is the last chunk
         if self.next_chunk == self.num_chunks {
-            // FIXME(thegaram): disconnect peer
+            // FIXME(ionian-dev): disconnect peer
+            // TODO(ionian-dev): add `finalize_tx` logic
             self.state = SyncState::Completed;
             return;
         }
@@ -415,7 +427,7 @@ impl SerialSyncController {
         };
 
         // current request failed
-        // TODO(thegaram): count failed attempts instead of banning directly,
+        // TODO(ionian-dev): count failed attempts instead of banning directly,
         // and consider different action for different failure reasons.
         self.ban_peer(from_peer_id, "RPC Error");
         self.state = SyncState::AwaitingDownload;
@@ -502,8 +514,8 @@ impl SerialSyncController {
                     }
 
                     if since.elapsed() >= DOWNLOAD_TIMEOUT {
-                        // TODO(thegaram): consider removing peer
-                        self.state = SyncState::Idle;
+                        // TODO(ionian-dev): consider removing peer
+                        self.state = SyncState::AwaitingDownload;
                         keep_going = true;
                         continue;
                     }

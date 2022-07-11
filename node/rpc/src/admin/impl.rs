@@ -24,15 +24,11 @@ impl RpcServer for RpcServerImpl {
     }
 
     #[tracing::instrument(skip(self), err)]
-    async fn start_sync_file(
-        &self,
-        tx_seq: u64,
-        num_chunks: usize,
-    ) -> Result<(), jsonrpsee::core::Error> {
+    async fn start_sync_file(&self, tx_seq: u64) -> Result<(), jsonrpsee::core::Error> {
         info!("admin_startSyncFile({tx_seq})");
 
         self.sync_send()?
-            .notify(SyncMessage::StartSyncFile { tx_seq, num_chunks })
+            .notify(SyncMessage::StartSyncFile { tx_seq })
             .map_err(|e| error::internal_error(format!("Failed to send sync command: {:?}", e)))
     }
 

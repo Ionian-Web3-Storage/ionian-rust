@@ -19,7 +19,6 @@ members = [
     "node/router",
     "node/rpc",
     "node/shared_types",
-    "node/store",
     "node/storage",
     "node/storage-async",
     "node/sync",

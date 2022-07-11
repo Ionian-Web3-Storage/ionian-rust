@@ -496,7 +496,7 @@ mod tests {
             }))))
         );
 
-        // TODO(thegaram): add tests for outbound requests
+        // TODO(ionian-dev): add tests for outbound requests
     }
 
     // /// Test a malicious snappy encoding for a V1 `Status` message where the attacker

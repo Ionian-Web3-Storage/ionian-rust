@@ -4,8 +4,8 @@ use crate::types::Status;
 use crate::Context;
 use chunk_pool::MemoryChunkPool;
 use jsonrpsee::core::async_trait;
-use network::{rpc::StatusMessage, NetworkGlobals};
-use network::{NetworkMessage, RequestId};
+use network::NetworkGlobals;
+use network::NetworkMessage;
 use shared_types::DataRoot;
 use std::sync::Arc;
 use storage::log_store::Store;
@@ -24,33 +24,6 @@ impl RpcServer for RpcServerImpl {
         Ok(Status {
             connected_peers: self.network_globals()?.connected_peers(),
         })
-    }
-
-    #[tracing::instrument(skip(self), err)]
-    async fn send_status(&self, data: u64) -> Result<(), jsonrpsee::core::Error> {
-        info!("ionian_sendStatus()");
-
-        let peer_ids = self
-            .network_globals()?
-            .peers
-            .read()
-            .peer_ids()
-            .cloned()
-            .collect::<Vec<_>>();
-
-        for peer_id in peer_ids {
-            let command = NetworkMessage::SendRequest {
-                peer_id,
-                request: network::Request::Status(StatusMessage { data }),
-                request_id: RequestId::Router,
-            };
-
-            self.network_send()?.send(command).map_err(|e| {
-                error::internal_error(format!("Failed to send shutdown command: {:?}", e))
-            })?;
-        }
-
-        Ok(())
     }
 
     #[tracing::instrument(skip(self), err)]
@@ -137,6 +110,7 @@ impl RpcServerImpl {
         }
     }
 
+    #[allow(dead_code)]
     fn network_send(&self) -> Result<&UnboundedSender<NetworkMessage>, jsonrpsee::core::Error> {
         match &self.ctx.network_send {
             Some(network_send) => Ok(network_send),

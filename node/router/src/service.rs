@@ -231,12 +231,12 @@ impl RouterService {
                 source,
             } => self.libp2p.goodbye_peer(&peer_id, reason, source),
             NetworkMessage::DialPeer { address } => {
-                // TODO(thegaram): do not dial if peer is already connected
+                // TODO(ionian-dev): do not dial if peer is already connected
 
                 match Swarm::dial(&mut self.libp2p.swarm, address.clone()) {
                     Ok(()) => debug!(%address, "Dialing libp2p peer"),
                     Err(err) => {
-                        // TODO(thegaram): consider sending a dial failed message
+                        // TODO(ionian-dev): consider sending a dial failed message
                         debug!(%address, error = ?err, "Could not connect to peer")
                     }
                 };

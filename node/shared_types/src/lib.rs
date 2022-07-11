@@ -18,6 +18,14 @@ pub type DataRoot = H256;
 // Each chunk is 32 bytes.
 pub const CHUNK_SIZE: usize = 256;
 
+pub fn bytes_to_chunks(size_bytes: usize) -> usize {
+    if size_bytes % CHUNK_SIZE == 0 {
+        size_bytes / CHUNK_SIZE
+    } else {
+        size_bytes / CHUNK_SIZE + 1
+    }
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Chunk(pub [u8; CHUNK_SIZE]);
 
@@ -225,7 +233,7 @@ impl ChunkArrayWithProof {
 
 impl std::fmt::Debug for ChunkArrayWithProof {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        // TODO(thegaram): replace this with something more meaningful
+        // TODO(ionian-dev): replace this with something more meaningful
         f.write_str("ChunkArrayWithProof")
     }
 }

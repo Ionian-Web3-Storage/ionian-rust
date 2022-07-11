@@ -181,7 +181,6 @@ pub struct DataByHashRequest {
 /// Request a chunk array from a peer.
 #[derive(Encode, Decode, Clone, Debug, PartialEq)]
 pub struct GetChunksRequest {
-    // FIXME(thegaram): change this to data_root when we update the primary key in the storage layer
     pub tx_seq: u64,
     pub index_start: u32,
     pub index_end: u32,
