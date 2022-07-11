@@ -7,12 +7,11 @@ use anyhow::{anyhow, bail};
 use kvdb_rocksdb::{Database, DatabaseConfig};
 use merkle_light::hash::{Algorithm, Hashable};
 use merkle_light::merkle::MerkleTree;
-use merkle_light::proof::Proof;
 use merkle_tree::RawLeafSha3Algorithm;
 use rayon::prelude::*;
 use shared_types::{
-    Chunk, ChunkArray, ChunkArrayWithProof, ChunkProof, ChunkWithProof, DataRoot, Transaction,
-    TransactionHash, CHUNK_SIZE,
+    Chunk, ChunkArray, ChunkArrayWithProof, ChunkWithProof, DataProof, DataRoot, Proof,
+    Transaction, TransactionHash, CHUNK_SIZE,
 };
 use ssz::{Decode, Encode};
 use std::cmp;
@@ -34,7 +33,6 @@ const CHUNK_BATCH_SIZE: usize = 1024;
 pub type SubMerkleTree = MerkleTree<[u8; 32], RawLeafSha3Algorithm>;
 /// This can only be used to represent the top tree where the leaves are chunk subtree roots.
 pub type TopMerkleTree = MerkleTree<[u8; 32], RawLeafSha3Algorithm>;
-type DataProof = Proof<[u8; 32]>;
 
 macro_rules! try_option {
     ($r: ident) => {
@@ -492,7 +490,7 @@ impl LogStoreRead for SimpleLogStore {
         let tx = try_option!(self.get_tx_by_seq_number(tx_seq)?);
         let proof = if tx.size <= self.chunk_batch_size as u64 * CHUNK_SIZE as u64 {
             // The total tx size is less than a batch, so there is no top tree.
-            ChunkProof::from_merkle_proof(&sub_proof)
+            Proof::from_merkle_proof(&sub_proof)
         } else {
             let top_tree = try_option!(self.get_top_tree(tx_seq)?);
             let top_proof = top_tree.gen_proof(batch_index);
@@ -520,8 +518,8 @@ impl LogStoreRead for SimpleLogStore {
         if tx.size <= self.chunk_batch_size as u64 * CHUNK_SIZE as u64 {
             // The total tx size is less than a batch, so there is no top tree.
             let (chunk_array, sub_tree) = try_option!(self.get_sub_tree(tx_seq, 0)?);
-            let start_proof = ChunkProof::from_merkle_proof(&sub_tree.gen_proof(index_start));
-            let end_proof = ChunkProof::from_merkle_proof(&sub_tree.gen_proof(index_end - 1));
+            let start_proof = Proof::from_merkle_proof(&sub_tree.gen_proof(index_start));
+            let end_proof = Proof::from_merkle_proof(&sub_tree.gen_proof(index_end - 1));
             Ok(Some(ChunkArrayWithProof {
                 chunks: try_option!(chunk_array.sub_array(index_start, index_end)),
                 start_proof,
@@ -590,7 +588,7 @@ fn chunk_index(chunk_key: &[u8]) -> Result<usize> {
     Ok(index as usize)
 }
 
-fn chunk_proof(top_proof: &DataProof, sub_proof: &DataProof) -> Result<ChunkProof> {
+fn chunk_proof(top_proof: &DataProof, sub_proof: &DataProof) -> Result<Proof> {
     if top_proof.item() != sub_proof.root() {
         bail!(Error::Custom(format!(
             "top tree and sub tree mismatch: top_leaf={:?}, sub_root={:?}",
@@ -609,7 +607,7 @@ fn chunk_proof(top_proof: &DataProof, sub_proof: &DataProof) -> Result<ChunkProo
     lemma.extend_from_slice(&top_proof.lemma()[1..]);
     path.extend_from_slice(top_proof.path());
     let proof = DataProof::new(lemma, path);
-    Ok(ChunkProof::from_merkle_proof(&proof))
+    Ok(Proof::from_merkle_proof(&proof))
 }
 
 /// Return the batch boundaries `(batch_start_index, batch_end_index)` given the index range.

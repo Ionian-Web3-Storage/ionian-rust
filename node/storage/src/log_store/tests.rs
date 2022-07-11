@@ -1,7 +1,7 @@
 use crate::log_store::simple_log_store::{sub_merkle_tree, SimpleLogStore};
 use crate::log_store::{LogStoreChunkRead, LogStoreChunkWrite, LogStoreRead, LogStoreWrite};
 use rand::random;
-use shared_types::{ChunkArray, ChunkProof, Transaction, TransactionHash, CHUNK_SIZE};
+use shared_types::{ChunkArray, Proof, Transaction, TransactionHash, CHUNK_SIZE};
 use std::cmp;
 use std::ops::Deref;
 use tempdir::TempDir;
@@ -100,7 +100,7 @@ fn test_put_get() {
         assert_eq!(chunk_with_proof.chunk, chunk_array.chunk_at(i).unwrap());
         assert_eq!(
             chunk_with_proof.proof,
-            ChunkProof::from_merkle_proof(&merkle.gen_proof(i))
+            Proof::from_merkle_proof(&merkle.gen_proof(i))
         );
         assert!(
             chunk_with_proof

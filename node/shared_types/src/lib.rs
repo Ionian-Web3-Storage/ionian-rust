@@ -2,7 +2,7 @@ use anyhow::{anyhow, bail, Result};
 use ethereum_types::H256;
 use merkle_light::hash::{Algorithm, Hashable};
 use merkle_light::merkle::next_pow2;
-use merkle_light::proof::Proof;
+use merkle_light::proof::Proof as RawProof;
 use merkle_tree::{RawLeafSha3Algorithm, LEAF};
 use ssz_derive::{Decode as DeriveDecode, Encode as DeriveEncode};
 use std::hash::Hasher;
@@ -17,6 +17,8 @@ pub enum RequestId {
 pub type TransactionHash = H256;
 
 pub type DataRoot = H256;
+
+pub type DataProof = RawProof<[u8; 32]>;
 
 // Each chunk is 32 bytes.
 pub const CHUNK_SIZE: usize = 256;
@@ -33,11 +35,11 @@ impl<H: Hasher> Hashable<H> for Chunk {
 }
 
 #[derive(Clone, Debug, PartialEq, DeriveEncode, DeriveDecode)]
-pub struct ChunkProof {
+pub struct Proof {
     pub lemma: Vec<H256>,
     pub path: Vec<bool>,
 }
-impl ChunkProof {
+impl Proof {
     pub fn new_empty() -> Self {
         Self {
             lemma: Vec::new(),
@@ -45,8 +47,8 @@ impl ChunkProof {
         }
     }
 
-    pub fn from_merkle_proof(proof: &Proof<[u8; 32]>) -> Self {
-        ChunkProof {
+    pub fn from_merkle_proof(proof: &DataProof) -> Self {
+        Proof {
             lemma: proof.lemma().iter().map(|e| e.into()).collect(),
             path: proof.path().to_vec(),
         }
@@ -67,8 +69,7 @@ impl ChunkProof {
                 position
             );
         }
-        let proof =
-            Proof::<[u8; 32]>::new(self.lemma.iter().map(|e| e.0).collect(), self.path.clone());
+        let proof = DataProof::new(self.lemma.iter().map(|e| e.0).collect(), self.path.clone());
         if proof.root() != root.0 {
             bail!(
                 "root mismatch, proof_root={:?} provided={:?}",
@@ -119,7 +120,7 @@ pub struct Transaction {
 
 pub struct ChunkWithProof {
     pub chunk: Chunk,
-    pub proof: ChunkProof,
+    pub proof: Proof,
 }
 
 impl ChunkWithProof {
@@ -138,8 +139,8 @@ impl ChunkWithProof {
 pub struct ChunkArrayWithProof {
     pub chunks: ChunkArray,
     // TODO: The top levels of the two proofs can be merged.
-    pub start_proof: ChunkProof,
-    pub end_proof: ChunkProof,
+    pub start_proof: Proof,
+    pub end_proof: Proof,
 }
 
 impl ChunkArrayWithProof {

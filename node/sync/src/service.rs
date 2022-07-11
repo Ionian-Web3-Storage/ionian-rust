@@ -3,7 +3,7 @@ use network::{
     rpc::GetChunksRequest, rpc::RPCResponseErrorCode, types::AnnounceFile, Multiaddr,
     NetworkGlobals, NetworkMessage, PeerId, PeerRequestId, PubsubMessage, SyncId as RequestId,
 };
-use shared_types::{ChunkArrayWithProof, ChunkProof};
+use shared_types::{ChunkArrayWithProof, Proof};
 use std::{collections::HashMap, sync::Arc};
 use storage::log_store::Store as LogStore;
 use storage_async::Store;
@@ -256,8 +256,8 @@ impl SyncService {
             .map(|maybe_chunks| {
                 maybe_chunks.map(|chunks| ChunkArrayWithProof {
                     chunks,
-                    start_proof: ChunkProof::new_empty(),
-                    end_proof: ChunkProof::new_empty(),
+                    start_proof: Proof::new_empty(),
+                    end_proof: Proof::new_empty(),
                 })
             });
 
