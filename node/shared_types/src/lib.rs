@@ -34,7 +34,7 @@ impl<H: Hasher> Hashable<H> for Chunk {
 
 #[derive(Clone, Debug, PartialEq, DeriveEncode, DeriveDecode)]
 pub struct ChunkProof {
-    pub lemma: Vec<[u8; 32]>,
+    pub lemma: Vec<H256>,
     pub path: Vec<bool>,
 }
 impl ChunkProof {
@@ -47,7 +47,7 @@ impl ChunkProof {
 
     pub fn from_merkle_proof(proof: &Proof<[u8; 32]>) -> Self {
         ChunkProof {
-            lemma: proof.lemma().to_vec(),
+            lemma: proof.lemma().iter().map(|e| e.into()).collect(),
             path: proof.path().to_vec(),
         }
     }
@@ -67,7 +67,8 @@ impl ChunkProof {
                 position
             );
         }
-        let proof = Proof::<[u8; 32]>::new(self.lemma.clone(), self.path.clone());
+        let proof =
+            Proof::<[u8; 32]>::new(self.lemma.iter().map(|e| e.0).collect(), self.path.clone());
         if proof.root() != root.0 {
             bail!(
                 "root mismatch, proof_root={:?} provided={:?}",
@@ -187,7 +188,7 @@ impl ChunkArrayWithProof {
             let start_index = if !self.start_proof.path[depth] {
                 // If the left-most node is the right child, its sibling is not within the data range and should be retrieved from the proof.
                 let mut a = RawLeafSha3Algorithm::default();
-                let parent = a.node(self.start_proof.lemma[depth + 1], children_layer[0]);
+                let parent = a.node(self.start_proof.lemma[depth + 1].0, children_layer[0]);
                 parent_layer.push(parent);
                 1
             } else {
@@ -204,7 +205,7 @@ impl ChunkArrayWithProof {
                     let mut a = RawLeafSha3Algorithm::default();
                     parent_layer.push(a.node(
                         *right_most,
-                        self.end_proof.lemma[right_most_proof_index + 1],
+                        self.end_proof.lemma[right_most_proof_index + 1].0,
                     ));
                     right_most_proof_index += 1;
                 } else {
