@@ -1,3 +1,6 @@
+#[macro_use]
+extern crate tracing;
+
 use anyhow::{anyhow, bail, Result};
 use ethereum_types::{H256, U256};
 use merkle_light::hash::{Algorithm, Hashable};
@@ -58,15 +61,13 @@ impl Proof {
         position: usize,
         total_chunk_count: usize,
     ) -> Result<bool> {
-        let proof_position = self.position(total_chunk_count);
-        if proof_position != position {
-            bail!(
-                "wrong position: proof_pos={} provided={}",
-                proof_position,
-                position
-            );
-        }
         let proof = DataProof::new(self.lemma.iter().map(|e| e.0).collect(), self.path.clone());
+
+        if !proof.validate::<RawLeafSha3Algorithm>() {
+            debug!("Proof validate fails");
+            return Ok(false);
+        }
+
         if proof.root() != root.0 {
             bail!(
                 "root mismatch, proof_root={:?} provided={:?}",
@@ -74,27 +75,44 @@ impl Proof {
                 root.0
             );
         }
+        let proof_position = self.position(total_chunk_count)?;
+        if proof_position != position {
+            bail!(
+                "wrong position: proof_pos={} provided={}",
+                proof_position,
+                position
+            );
+        }
+
         let mut h = RawLeafSha3Algorithm::default();
         chunk.hash(&mut h);
         let chunk_hash = h.hash();
         h.reset();
         let leaf_hash = h.leaf(chunk_hash);
         if proof.item() != leaf_hash {
-            bail!(anyhow!(
+            bail!(
                 "data hash mismatch: \n leaf_hash={:?} \n proof_item={:?} \n chunk_hash={:?}",
                 leaf_hash,
                 proof.item(),
                 chunk_hash
-            ));
+            );
         }
-        Ok(proof.validate::<RawLeafSha3Algorithm>())
+
+        Ok(true)
     }
 
-    fn position(&self, total_chunk_count: usize) -> usize {
+    fn position(&self, total_chunk_count: usize) -> Result<usize> {
         let mut left_chunk_count = total_chunk_count;
         let mut proof_position = 0;
         // TODO: After the first `is_left == true`, the tree depth is fixed.
         for is_left in self.path.iter().rev() {
+            if left_chunk_count == 1 {
+                bail!(
+                    "Proof path too long for a tree size: path={:?}, size={}",
+                    self.path,
+                    total_chunk_count
+                );
+            }
             let subtree_size = next_pow2(left_chunk_count) >> 1;
             if !is_left {
                 proof_position += subtree_size;
@@ -103,7 +121,14 @@ impl Proof {
                 left_chunk_count = subtree_size;
             }
         }
-        proof_position
+        if left_chunk_count != 1 {
+            bail!(
+                "Proof path too short for a tree size: path={:?}, size={}",
+                self.path,
+                total_chunk_count
+            );
+        }
+        Ok(proof_position)
     }
 }
 
@@ -144,7 +169,6 @@ pub struct ChunkArrayWithProof {
 
 impl ChunkArrayWithProof {
     pub fn validate(&self, root: &DataRoot, total_chunk_count: usize) -> Result<bool> {
-        // FIXME: Validate `chunks.data`.
         let start_chunk = self
             .chunks
             .first_chunk()

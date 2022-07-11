@@ -63,19 +63,16 @@ fn encode_merkle_tree<A: Algorithm<[u8; 32]>>(merkle_tree: &MerkleTree<[u8; 32],
 
 fn decode_merkle_tree(bytes: &[u8]) -> Result<TopMerkleTree> {
     if bytes.len() < 4 {
-        bail!(anyhow!(
-            "Merkle tree encoding too short: len={}",
-            bytes.len()
-        ));
+        bail!("Merkle tree encoding too short: len={}", bytes.len());
     }
     let leaf_count = u32::from_be_bytes(bytes[0..4].try_into().unwrap()) as usize;
     let expected_len = 4 + 32 * leaf_count;
     if bytes.len() != expected_len {
-        bail!(anyhow!(
+        bail!(
             "Merkle tree encoding incorrect length: len={} expected={}",
             bytes.len(),
             expected_len
-        ));
+        );
     }
     let mut data: Vec<[u8; 32]> = vec![Default::default(); leaf_count];
     for (i, leaf) in data.iter_mut().enumerate() {
@@ -88,7 +85,7 @@ fn decode_merkle_tree(bytes: &[u8]) -> Result<TopMerkleTree> {
 /// This should be called with input checked.
 pub fn sub_merkle_tree(leaf_data: &[u8]) -> Result<SubMerkleTree> {
     if leaf_data.len() % CHUNK_SIZE != 0 {
-        bail!(anyhow!("merkle_tree: unmatch data size"));
+        bail!("merkle_tree: unmatch data size");
     }
     let leaf_count = leaf_data.len() / CHUNK_SIZE;
     let mut data: Vec<Chunk> = vec![Chunk([0; CHUNK_SIZE]); leaf_count];
@@ -414,18 +411,18 @@ impl LogStoreWrite for SimpleLogStore {
                 batch_end_index,
             )?;
             if maybe_chunks.is_none() {
-                bail!(anyhow!(
+                bail!(
                     "finalize_tx: chunk batch not in db, start_index={}",
                     batch_start_index
-                ));
+                );
             }
             let chunks = maybe_chunks.unwrap();
             if batch_end_index - batch_start_index != chunks.data.len() / CHUNK_SIZE {
-                bail!(anyhow!(
+                bail!(
                     "finalize_tx: data length unmatch: expected_chunks={}, data_len={}",
                     batch_end_index % self.chunk_batch_size,
                     chunks.data.len()
-                ));
+                );
             }
             let merkle_tree = sub_merkle_tree(&chunks.data)?;
             let merkle_root = merkle_tree.root();
