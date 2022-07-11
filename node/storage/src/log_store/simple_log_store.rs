@@ -11,7 +11,7 @@ use merkle_tree::RawLeafSha3Algorithm;
 use rayon::prelude::*;
 use shared_types::{
     Chunk, ChunkArray, ChunkArrayWithProof, ChunkWithProof, DataProof, DataRoot, Proof,
-    Transaction, TransactionHash, CHUNK_SIZE,
+    Transaction, CHUNK_SIZE,
 };
 use ssz::{Decode, Encode};
 use std::cmp;
@@ -19,12 +19,11 @@ use std::path::Path;
 use std::sync::Arc;
 
 const COL_TX: u32 = 0;
-const COL_TX_HASH_INDEX: u32 = 1;
-const COL_TX_DATA_ROOT_INDEX: u32 = 2;
-const COL_TX_MERKLE: u32 = 3;
-const COL_CHUNK: u32 = 4;
-const COL_TX_COMPLETED: u32 = 5;
-const COL_NUM: u32 = 6;
+const COL_TX_DATA_ROOT_INDEX: u32 = 1;
+const COL_TX_MERKLE: u32 = 2;
+const COL_CHUNK: u32 = 3;
+const COL_TX_COMPLETED: u32 = 4;
+const COL_NUM: u32 = 5;
 // A chunk key is the concatenation of tx_seq(u64) and start_index(u32)
 const CHUNK_KEY_SIZE: usize = 8 + 4;
 const CHUNK_BATCH_SIZE: usize = 1024;
@@ -378,7 +377,6 @@ impl LogStoreWrite for SimpleLogStore {
     fn put_tx(&self, tx: Transaction) -> Result<()> {
         let mut db_tx = self.kvdb.transaction();
         db_tx.put(COL_TX, &tx.seq.to_be_bytes(), &tx.as_ssz_bytes());
-        db_tx.put(COL_TX_HASH_INDEX, tx.hash.as_bytes(), &tx.seq.to_be_bytes());
         if self
             .get_tx_seq_by_data_root(&tx.data_merkle_root)?
             .is_none()
@@ -456,12 +454,6 @@ impl LogStoreWrite for SimpleLogStore {
 }
 
 impl LogStoreRead for SimpleLogStore {
-    fn get_tx_by_hash(&self, hash: &TransactionHash) -> Result<Option<Transaction>> {
-        let value = try_option!(self.kvdb.get(COL_TX_HASH_INDEX, hash.as_bytes())?);
-        let seq = decode_tx_seq(&value)?;
-        self.get_tx_by_seq_number(seq)
-    }
-
     fn get_tx_by_seq_number(&self, seq: u64) -> Result<Option<Transaction>> {
         let value = try_option!(self.kvdb.get(COL_TX, &seq.to_be_bytes())?);
         let tx = Transaction::from_ssz_bytes(&value).map_err(Error::from)?;
@@ -570,6 +562,16 @@ impl LogStoreRead for SimpleLogStore {
         self.kvdb
             .has_key(COL_TX_COMPLETED, &tx_seq.to_be_bytes())
             .map_err(Into::into)
+    }
+
+    fn next_tx_seq(&self) -> Result<u64> {
+        // TODO: `kvdb` and `kvdb-rocksdb` does not support `seek_to_last` yet.
+        // We'll need to fork it or use another wrapper for a better performance in this.
+        self.kvdb
+            .iter(COL_TX)
+            .last()
+            .map(|(k, _)| decode_tx_seq(k.as_ref()).map(|seq| seq + 1))
+            .unwrap_or(Ok(0))
     }
 }
 

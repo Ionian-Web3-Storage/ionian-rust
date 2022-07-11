@@ -4,11 +4,13 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+anyhow = "1.0.58"
 clap = { version = "3.2.5", features = ["cargo"] }
 error-chain = "0.12.4"
 exit-future = "0.2.0"
 futures = "0.3.21"
 ionian_version = { path = "../common/ionian_version" }
+log_entry_sync = { path = "./log_entry_sync" }
 miner = { path = "./miner" }
 network = { path = "./network" }
 router = { path = "./router" }

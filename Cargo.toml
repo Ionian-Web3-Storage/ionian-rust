@@ -9,9 +9,11 @@ members = [
     "common/task_executor",
     "common/ionian_version",
     "common/unused_port",
+    "common/cfx_rpc_client",
 
     "node",
     "node/chunk_pool",
+    "node/log_entry_sync",
     "node/miner",
     "node/network",
     "node/router",
@@ -22,3 +24,6 @@ members = [
     "node/storage-async",
     "node/sync",
 ]
+
+[patch.crates-io]
+ethabi = { git = "https://github.com/zz-ionian/ethabi.git", branch = "eth_0.12" }
