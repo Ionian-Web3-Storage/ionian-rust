@@ -1,7 +1,7 @@
 use crate::log_store::simple_log_store::{sub_merkle_tree, SimpleLogStore};
 use crate::log_store::{LogStoreChunkRead, LogStoreChunkWrite, LogStoreRead, LogStoreWrite};
 use rand::random;
-use shared_types::{Chunk, ChunkArray, ChunkProof, Transaction, TransactionHash, CHUNK_SIZE};
+use shared_types::{ChunkArray, ChunkProof, Transaction, CHUNK_SIZE};
 use std::cmp;
 use std::ops::Deref;
 use tempdir::TempDir;
@@ -39,19 +39,19 @@ fn create_temp_log_store() -> TempSimpleLogStore {
 #[test]
 fn test_put_get() {
     let store = SimpleLogStore::memorydb().unwrap();
-    let chunk_count = store.chunk_batch_size * 2 + 1;
+    let chunk_count = store.chunk_batch_size + store.chunk_batch_size / 2 - 1;
     let data_size = CHUNK_SIZE * chunk_count;
     let mut data = vec![0u8; data_size];
     for i in 0..chunk_count {
         data[i * CHUNK_SIZE] = random();
     }
     let merkle = sub_merkle_tree(&data).unwrap();
-    let tx_hash = TransactionHash::random();
     let tx = Transaction {
-        hash: tx_hash,
+        stream_ids: vec![],
         size: data_size as u64,
         data_merkle_root: merkle.root().into(),
         seq: 0,
+        data: vec![],
     };
     store.put_tx(tx.clone()).unwrap();
     for start_index in (0..chunk_count).step_by(store.chunk_batch_size) {
@@ -71,7 +71,6 @@ fn test_put_get() {
         start_index: 0,
     };
     assert_eq!(store.get_tx_by_seq_number(0).unwrap().unwrap(), tx);
-    assert_eq!(store.get_tx_by_hash(&tx_hash).unwrap().unwrap(), tx);
     for i in 0..chunk_count {
         assert_eq!(
             store.get_chunk_by_tx_and_index(tx.seq, i).unwrap().unwrap(),
@@ -110,7 +109,7 @@ fn test_put_get() {
             chunk_with_proof.proof
         );
     }
-    for i in (0..chunk_count).step_by(store.chunk_batch_size) {
+    for i in (0..chunk_count).step_by(store.chunk_batch_size / 3) {
         let end = std::cmp::min(i + store.chunk_batch_size, chunk_count);
         let chunk_array_with_proof = store
             .get_chunks_with_proof_by_tx_and_index_range(tx.seq, i, end)

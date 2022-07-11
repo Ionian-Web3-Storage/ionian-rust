@@ -13,6 +13,7 @@ use std::error::Error;
 async fn start_node(context: RuntimeContext, config: IonianConfig) -> Result<Client, String> {
     let network_config = config.network_config()?;
     let rpc_config = config.rpc_config()?;
+    let log_sync_config = config.log_sync_config()?;
 
     ClientBuilder::new()
         .with_runtime_context(context)
@@ -24,6 +25,7 @@ async fn start_node(context: RuntimeContext, config: IonianConfig) -> Result<Cli
         .with_router()?
         .with_rpc(rpc_config)
         .await?
+        .with_log_sync(log_sync_config)?
         .build()
 }
 

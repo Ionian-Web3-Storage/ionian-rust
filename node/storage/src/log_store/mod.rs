@@ -1,6 +1,4 @@
-use shared_types::{
-    Chunk, ChunkArray, ChunkArrayWithProof, ChunkWithProof, Transaction, TransactionHash,
-};
+use shared_types::{Chunk, ChunkArray, ChunkArrayWithProof, ChunkWithProof, DataRoot, Transaction};
 
 use crate::error::Result;
 
@@ -14,11 +12,11 @@ mod tests;
 /// Implementation Rationale:
 /// If the stored chunk is large, we can store the proof together with the chunk.
 pub trait LogStoreRead: LogStoreChunkRead {
-    /// Get a transaction by its hash.
-    fn get_tx_by_hash(&self, hash: &TransactionHash) -> Result<Option<Transaction>>;
-
     /// Get a transaction by its global log sequence number.
     fn get_tx_by_seq_number(&self, seq: u64) -> Result<Option<Transaction>>;
+
+    /// Get a transaction by the data root of its data.
+    fn get_tx_seq_by_data_root(&self, data_root: &DataRoot) -> Result<Option<u64>>;
 
     fn get_chunk_with_proof_by_tx_and_index(
         &self,
@@ -32,6 +30,10 @@ pub trait LogStoreRead: LogStoreChunkRead {
         index_start: usize,
         index_end: usize,
     ) -> Result<Option<ChunkArrayWithProof>>;
+
+    fn check_tx_completed(&self, tx_seq: u64) -> Result<bool>;
+
+    fn next_tx_seq(&self) -> Result<u64>;
 }
 
 pub trait LogStoreChunkRead {
@@ -46,6 +48,21 @@ pub trait LogStoreChunkRead {
         index_start: usize,
         index_end: usize,
     ) -> Result<Option<ChunkArray>>;
+
+    fn get_chunk_by_data_root_and_index(
+        &self,
+        data_root: &DataRoot,
+        index: usize,
+    ) -> Result<Option<Chunk>>;
+
+    fn get_chunks_by_data_root_and_index_range(
+        &self,
+        data_root: &DataRoot,
+        index_start: usize,
+        index_end: usize,
+    ) -> Result<Option<ChunkArray>>;
+
+    fn get_chunk_index_list(&self, tx_seq: u64) -> Result<Vec<usize>>;
 }
 
 pub trait LogStoreWrite: LogStoreChunkWrite {
@@ -63,10 +80,13 @@ pub trait LogStoreWrite: LogStoreChunkWrite {
 pub trait LogStoreChunkWrite {
     /// Store data chunks of a data entry.
     fn put_chunks(&self, tx_seq: u64, chunks: ChunkArray) -> Result<()>;
+
+    /// Delete all chunks of a tx.
+    fn remove_all_chunks(&self, tx_seq: u64) -> Result<()>;
 }
 
 pub trait LogChunkStore: LogStoreChunkRead + LogStoreChunkWrite + Send + Sync + 'static {}
 impl<T: LogStoreChunkRead + LogStoreChunkWrite + Send + Sync + 'static> LogChunkStore for T {}
 
-pub trait Store: LogStoreRead + LogStoreChunkWrite + Send + Sync + 'static {}
-impl<T: LogStoreRead + LogStoreChunkWrite + Send + Sync + 'static> Store for T {}
+pub trait Store: LogStoreRead + LogStoreWrite + Send + Sync + 'static {}
+impl<T: LogStoreRead + LogStoreWrite + Send + Sync + 'static> Store for T {}

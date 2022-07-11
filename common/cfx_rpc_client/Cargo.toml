@@ -1,0 +1,16 @@
+[package]
+name = "cfx_rpc_client"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+anyhow = "*"
+ethereum-types = "0.12"
+jsonrpsee = { version = "0.14.0", features = ["full"] }
+serde = { version = "1.0.137", features = ["derive"] }
+serde_json = "1.0.82"
+tokio = "1.19.2"
+rustc-hex = "2.1"
+ethers = { version = "0.13", features = ["ws", "rustls"] }

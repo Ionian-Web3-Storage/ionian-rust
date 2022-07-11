@@ -1,4 +1,5 @@
 use super::{Client, RuntimeContext};
+use log_entry_sync::{LogSyncConfig, LogSyncManager};
 use miner::{MinerMessage, MinerService};
 use network::{
     self, NetworkConfig, NetworkGlobals, NetworkMessage, RequestId, Service as LibP2PService,
@@ -8,7 +9,7 @@ use rpc::RPCConfig;
 use std::sync::Arc;
 use storage::log_store::{SimpleLogStore, Store};
 use sync::{SyncSender, SyncService};
-use tokio::sync::mpsc;
+use tokio::sync::{broadcast, mpsc};
 
 macro_rules! require {
     ($component:expr, $self:ident, $e:ident) => {
@@ -38,6 +39,11 @@ struct MinerComponents {
     send: mpsc::UnboundedSender<MinerMessage>,
 }
 
+struct LogSyncComponents {
+    /// The sender to notify the log sync loop to stop.
+    send: broadcast::Sender<()>,
+}
+
 /// Builds a `Client` instance.
 ///
 /// ## Notes
@@ -50,6 +56,7 @@ pub struct ClientBuilder {
     network: Option<NetworkComponents>,
     sync: Option<SyncComponents>,
     miner: Option<MinerComponents>,
+    log_sync: Option<LogSyncComponents>,
 
     test: Option<u32>,
 }
@@ -63,6 +70,7 @@ impl ClientBuilder {
             network: None,
             sync: None,
             miner: None,
+            log_sync: None,
 
             test: None,
         }
@@ -167,6 +175,8 @@ impl ClientBuilder {
             network_globals: self.network.as_ref().map(|network| network.globals.clone()),
             network_send: self.network.as_ref().map(|network| network.send.clone()),
             sync_send: self.sync.as_ref().map(|sync| sync.send.clone()),
+            log_store: self.store.as_ref().cloned(),
+            chunk_pool: None,
             shutdown_sender: executor.shutdown_sender(),
         };
 
@@ -176,6 +186,15 @@ impl ClientBuilder {
 
         executor.spawn(rpc_handle, "rpc");
 
+        Ok(self)
+    }
+
+    pub fn with_log_sync(mut self, config: LogSyncConfig) -> Result<Self, String> {
+        let executor = require!("sync", self, runtime_context).clone().executor;
+        let store = require!("sync", self, store).clone();
+        let stop_sender =
+            LogSyncManager::spawn(config, executor, store).map_err(|e| e.to_string())?;
+        self.log_sync = Some(LogSyncComponents { send: stop_sender });
         Ok(self)
     }
 

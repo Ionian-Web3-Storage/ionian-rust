@@ -1,5 +1,3 @@
-#![cfg(not(debug_assertions))]
-
 mod common;
 use std::{
     collections::{HashMap, HashSet},
@@ -10,8 +8,8 @@ use common::{
     behaviour::{CallTraceBehaviour, MockBehaviour},
     swarm,
 };
-use lighthouse_network::{
-    peer_manager::{config::Config, PeerManagerEvent},
+use network::{
+    peer_manager::{self, config::Config, PeerManagerEvent},
     NetworkGlobals, PeerAction, PeerInfo, PeerManager, ReportSource,
 };
 
@@ -23,7 +21,7 @@ use libp2p::{
     NetworkBehaviour,
 };
 
-use slog::debug;
+use tracing::debug;
 
 /// Struct that mimics the lighthouse_network::Service with respect to handling peer manager
 /// events.
@@ -68,12 +66,12 @@ impl From<PeerManagerEvent> for Ev {
 #[derive(NetworkBehaviour)]
 #[behaviour(out_event = "Ev")]
 struct Behaviour {
-    pm_call_trace: CallTraceBehaviour<PeerManager<E>>,
+    pm_call_trace: CallTraceBehaviour<PeerManager>,
     sibling: MockBehaviour,
 }
 
 impl Behaviour {
-    fn new(pm: PeerManager<E>) -> Self {
+    fn new(pm: PeerManager) -> Self {
         Behaviour {
             pm_call_trace: CallTraceBehaviour::new(pm),
             sibling: MockBehaviour::new(DummyConnectionHandler {
@@ -87,9 +85,7 @@ impl Behaviour {
 
 #[tokio::test]
 async fn banned_peers_consistency() {
-    let log = common::build_log(slog::Level::Debug, false);
-    let pm_log = log.new(slog::o!("who" => "[PM]"));
-    let globals: Arc<NetworkGlobals<E>> = Arc::new(NetworkGlobals::new_test_globals(&log));
+    let globals: Arc<NetworkGlobals> = Arc::new(NetworkGlobals::new_test_globals());
 
     // Build the peer manager.
     let (mut pm_service, pm_addr) = {
@@ -97,9 +93,7 @@ async fn banned_peers_consistency() {
             discovery_enabled: false,
             ..Default::default()
         };
-        let pm = PeerManager::new(pm_config, globals.clone(), &pm_log)
-            .await
-            .unwrap();
+        let pm = PeerManager::new(pm_config, globals.clone()).await.unwrap();
         let mut pm_swarm = swarm::new_test_swarm(Behaviour::new(pm));
         let pm_addr = swarm::bind_listener(&mut pm_swarm).await;
         let service = Service { swarm: pm_swarm };
@@ -107,8 +101,7 @@ async fn banned_peers_consistency() {
     };
 
     let excess_banned_peers = 15;
-    let peers_to_ban =
-        lighthouse_network::peer_manager::peerdb::MAX_BANNED_PEERS + excess_banned_peers;
+    let peers_to_ban = peer_manager::peerdb::MAX_BANNED_PEERS + excess_banned_peers;
 
     // Build all the dummy peers needed.
     let (mut swarm_pool, peers) = {
@@ -136,7 +129,7 @@ async fn banned_peers_consistency() {
         // poll the pm and dummy swarms.
         tokio::select! {
             pm_event = pm_service.select_next_some() => {
-                debug!(log, "[PM] {:?}", pm_event);
+                debug!("[PM] {:?}", pm_event);
                 match pm_event {
                     SwarmEvent::Behaviour(Ev(ev)) => match ev {
                         PeerManagerEvent::Banned(peer_id, _) => {

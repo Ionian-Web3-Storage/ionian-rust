@@ -15,6 +15,10 @@ build_config! {
     (network_private, (bool), false)
     (network_disable_discovery, (bool), false)
 
+    // log sync
+    (blockchain_rpc_endpoint, (String), "http://127.0.0.1:8545".to_string())
+    (log_contract_address, (String), "".to_string())
+
     // rpc
     (rpc_enabled, (bool), true)
     (rpc_listen_address, (String), "127.0.0.1:5678".to_string())
