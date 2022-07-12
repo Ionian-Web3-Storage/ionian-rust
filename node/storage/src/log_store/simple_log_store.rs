@@ -33,6 +33,7 @@ pub type SubMerkleTree = MerkleTree<[u8; 32], RawLeafSha3Algorithm>;
 /// This can only be used to represent the top tree where the leaves are chunk subtree roots.
 pub type TopMerkleTree = MerkleTree<[u8; 32], RawLeafSha3Algorithm>;
 
+#[macro_export]
 macro_rules! try_option {
     ($r: ident) => {
         match $r {

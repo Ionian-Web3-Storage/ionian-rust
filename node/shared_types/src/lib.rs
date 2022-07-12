@@ -7,6 +7,7 @@ use merkle_light::hash::{Algorithm, Hashable};
 use merkle_light::merkle::next_pow2;
 use merkle_light::proof::Proof as RawProof;
 use merkle_tree::{RawLeafSha3Algorithm, LEAF};
+use serde::{Deserialize, Serialize};
 use ssz_derive::{Decode as DeriveDecode, Encode as DeriveEncode};
 use std::hash::Hasher;
 
@@ -168,7 +169,7 @@ impl TryFrom<&Proof> for DataProof {
     }
 }
 
-#[derive(Clone, Debug, Eq, PartialEq, DeriveDecode, DeriveEncode)]
+#[derive(Clone, Debug, Eq, PartialEq, DeriveDecode, DeriveEncode, Deserialize, Serialize)]
 pub struct Transaction {
     pub stream_ids: Vec<U256>,
     /// In-place data.

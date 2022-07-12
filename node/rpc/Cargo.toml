@@ -10,6 +10,7 @@ futures = "0.3.21"
 jsonrpsee = { version = "0.14.0", features = ["full"] }
 network = { path = "../network" }
 serde = { version = "1.0.137", features = ["derive"] }
+base64 = "0.13.0"
 shared_types = { path = "../shared_types" }
 sync = { path = "../sync" }
 task_executor = { path = "../../common/task_executor" }
@@ -17,3 +18,6 @@ tokio = { version = "1.19.2", features = ["macros", "sync"] }
 tracing = "0.1.35"
 chunk_pool = { path = "../chunk_pool" }
 storage = { path = "../storage" }
+
+[dev-dependencies]
+serde_json = "1.0.82"
