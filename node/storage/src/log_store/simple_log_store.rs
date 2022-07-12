@@ -35,6 +35,7 @@ pub type SubMerkleTree = MerkleTree<[u8; 32], RawLeafSha3Algorithm>;
 pub type TopMerkleTree = MerkleTree<[u8; 32], RawLeafSha3Algorithm>;
 type DataProof = Proof<[u8; 32]>;
 
+#[macro_export]
 macro_rules! try_option {
     ($r: ident) => {
         match $r {

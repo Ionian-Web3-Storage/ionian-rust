@@ -1,23 +1,23 @@
-use crate::types::Status;
+use crate::types::{FileInfo, RpcResult, Segment, Status};
 use jsonrpsee::proc_macros::rpc;
 use shared_types::DataRoot;
 
 #[rpc(server, client, namespace = "ionian")]
 pub trait Rpc {
     #[method(name = "getStatus")]
-    async fn get_status(&self) -> Result<Status, jsonrpsee::core::Error>;
+    async fn get_status(&self) -> RpcResult<Status>;
 
     #[method(name = "sendStatus")]
-    async fn send_status(&self, data: u64) -> Result<(), jsonrpsee::core::Error>;
+    async fn send_status(&self, data: u64) -> RpcResult<()>;
 
     #[method(name = "uploadSegment")]
     async fn upload_segment(
         &self,
         data_root: DataRoot,
-        data_segment: Vec<u8>,
+        data_segment: Segment,
         start_index: u32,
         proof: Option<Vec<u8>>,
-    ) -> Result<(), jsonrpsee::core::Error>;
+    ) -> RpcResult<()>;
 
     #[method(name = "downloadSegment")]
     async fn download_segment(
@@ -25,5 +25,8 @@ pub trait Rpc {
         data_root: DataRoot,
         start_index: u32,
         end_index: u32,
-    ) -> Result<Option<Vec<u8>>, jsonrpsee::core::Error>;
+    ) -> RpcResult<Option<Segment>>;
+
+    #[method(name = "getFileInfo")]
+    async fn get_file_info(&self, data_root: DataRoot) -> RpcResult<Option<FileInfo>>;
 }

@@ -1,4 +1,5 @@
 use super::api::RpcServer;
+use crate::types::RpcResult;
 use crate::{error, Context};
 use futures::prelude::*;
 use jsonrpsee::core::async_trait;
@@ -12,7 +13,7 @@ pub struct RpcServerImpl {
 #[async_trait]
 impl RpcServer for RpcServerImpl {
     #[tracing::instrument(skip(self), err)]
-    async fn shutdown(&self) -> Result<(), jsonrpsee::core::Error> {
+    async fn shutdown(&self) -> RpcResult<()> {
         info!("admin_shutdown()");
 
         self.ctx
@@ -24,11 +25,7 @@ impl RpcServer for RpcServerImpl {
     }
 
     #[tracing::instrument(skip(self), err)]
-    async fn start_sync_file(
-        &self,
-        tx_seq: u64,
-        num_chunks: usize,
-    ) -> Result<(), jsonrpsee::core::Error> {
+    async fn start_sync_file(&self, tx_seq: u64, num_chunks: usize) -> RpcResult<()> {
         info!("admin_startSyncFile({tx_seq})");
 
         self.sync_send()?
@@ -37,7 +34,7 @@ impl RpcServer for RpcServerImpl {
     }
 
     #[tracing::instrument(skip(self), err)]
-    async fn get_sync_status(&self, tx_seq: u64) -> Result<String, jsonrpsee::core::Error> {
+    async fn get_sync_status(&self, tx_seq: u64) -> RpcResult<String> {
         info!("admin_getSyncStatus({tx_seq})");
 
         let response = self

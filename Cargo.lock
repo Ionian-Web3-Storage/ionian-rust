@@ -5459,11 +5459,13 @@ dependencies = [
 name = "rpc"
 version = "0.1.0"
 dependencies = [
+ "base64 0.13.0",
  "chunk_pool",
  "futures",
  "jsonrpsee",
  "network",
  "serde",
+ "serde_json",
  "shared_types",
  "storage",
  "sync",
@@ -5872,6 +5874,7 @@ dependencies = [
  "ethereum-types 0.12.1",
  "merkle_light",
  "merkle_tree",
+ "serde",
  "tiny-keccak",
  "typenum",
 ]
