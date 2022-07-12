@@ -35,5 +35,4 @@ pub struct SubEvent {
     pub data: Bytes,
 }
 
-pub(crate) mod cfx;
 pub(crate) mod eth;

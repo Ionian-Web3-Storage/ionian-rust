@@ -9,7 +9,6 @@ members = [
     "common/task_executor",
     "common/ionian_version",
     "common/unused_port",
-    "common/cfx_rpc_client",
 
     "node",
     "node/chunk_pool",
