@@ -120,16 +120,16 @@ impl Inner {
 
         // Suppose to upload in sequence.
         if start_index > file.next_index {
-            bail!(anyhow!(
+            bail!(
                 "chunk index not in sequence, expected = {}, actual = {}",
                 file.next_index,
                 start_index
-            ));
+            );
         }
 
         // Already in progress
         if file.writing {
-            bail!(anyhow!("Uploading already in progress"));
+            bail!("Uploading already in progress");
         }
 
         // Update transaction in case that log entry already retrieved from blockchain

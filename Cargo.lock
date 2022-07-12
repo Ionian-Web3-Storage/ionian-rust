@@ -5873,6 +5873,7 @@ dependencies = [
  "merkle_light",
  "merkle_tree",
  "tiny-keccak",
+ "tracing",
  "typenum",
 ]
 
