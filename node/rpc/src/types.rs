@@ -9,11 +9,13 @@ use shared_types::{DataRoot, Proof, Transaction, CHUNK_SIZE};
 pub(crate) type RpcResult<T> = Result<T, RpcError>;
 
 #[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Status {
     pub connected_peers: usize,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct FileInfo {
     pub tx: Transaction,
     pub finalized: bool,
@@ -23,6 +25,7 @@ pub struct FileInfo {
 pub struct Segment(#[serde(with = "base64")] pub Vec<u8>);
 
 #[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SegmentWithProof {
     /// File merkle root.
     pub root: DataRoot,

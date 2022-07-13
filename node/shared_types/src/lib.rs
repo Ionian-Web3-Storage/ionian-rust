@@ -44,6 +44,7 @@ impl<H: Hasher> Hashable<H> for Chunk {
 }
 
 #[derive(Clone, Debug, PartialEq, DeriveEncode, DeriveDecode, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Proof {
     pub lemma: Vec<H256>,
     pub path: Vec<bool>,
@@ -170,6 +171,7 @@ impl TryFrom<&Proof> for DataProof {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, DeriveDecode, DeriveEncode, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Transaction {
     pub stream_ids: Vec<U256>,
     /// In-place data.
