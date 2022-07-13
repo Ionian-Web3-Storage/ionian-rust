@@ -169,14 +169,17 @@ impl ClientBuilder {
         }
 
         let executor = require!("rpc", self, runtime_context).clone().executor;
+        let log_store = require!("rpc", self, store).clone();
+
+        let (chunk_pool, chunk_pool_handler) = chunk_pool::unbounded(log_store.clone());
 
         let ctx = rpc::Context {
             config,
             network_globals: self.network.as_ref().map(|network| network.globals.clone()),
             network_send: self.network.as_ref().map(|network| network.send.clone()),
             sync_send: self.sync.as_ref().map(|sync| sync.send.clone()),
-            log_store: self.store.as_ref().cloned(),
-            chunk_pool: None,
+            log_store,
+            chunk_pool,
             shutdown_sender: executor.shutdown_sender(),
         };
 
@@ -185,6 +188,7 @@ impl ClientBuilder {
             .map_err(|e| format!("Unable to start HTTP RPC server: {:?}", e))?;
 
         executor.spawn(rpc_handle, "rpc");
+        executor.spawn(chunk_pool_handler.run(), "chunk_pool_handler");
 
         Ok(self)
     }

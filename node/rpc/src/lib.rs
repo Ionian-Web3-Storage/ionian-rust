@@ -33,8 +33,8 @@ pub struct Context {
     pub network_globals: Option<Arc<NetworkGlobals>>,
     pub network_send: Option<UnboundedSender<NetworkMessage>>,
     pub sync_send: Option<SyncSender>,
-    pub chunk_pool: Option<Arc<MemoryChunkPool>>,
-    pub log_store: Option<Arc<dyn Store>>,
+    pub chunk_pool: Arc<MemoryChunkPool>,
+    pub log_store: Arc<dyn Store>,
     pub shutdown_sender: Sender<ShutdownReason>,
 }
 

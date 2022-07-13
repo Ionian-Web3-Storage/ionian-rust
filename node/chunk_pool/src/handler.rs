@@ -56,4 +56,12 @@ impl ChunkPoolHandler {
 
         Ok(true)
     }
+
+    pub async fn run(mut self) {
+        loop {
+            if let Err(e) = self.handle().await {
+                warn!("Failed to write chunks or finalize transaction, {:?}", e);
+            }
+        }
+    }
 }

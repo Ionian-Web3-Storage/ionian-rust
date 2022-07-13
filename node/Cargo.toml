@@ -25,6 +25,7 @@ tokio-stream = { version = "0.1.9", features = ["sync"] }
 toml = "0.5.9"
 tracing = "0.1.35"
 tracing-subscriber = { version = "0.3.11", features = ["env-filter"] }
+chunk_pool = { path = "./chunk_pool" }
 
 [dependencies.libp2p]
 version = "0.45.1"

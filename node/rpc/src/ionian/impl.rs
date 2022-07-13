@@ -2,13 +2,11 @@ use super::api::RpcServer;
 use crate::error;
 use crate::types::{FileInfo, RpcResult, Segment, SegmentWithProof, Status};
 use crate::Context;
-use chunk_pool::MemoryChunkPool;
 use jsonrpsee::core::async_trait;
 use network::NetworkGlobals;
 use network::NetworkMessage;
 use shared_types::DataRoot;
 use std::sync::Arc;
-use storage::log_store::Store;
 use storage::try_option;
 use tokio::sync::mpsc::UnboundedSender;
 
@@ -31,23 +29,21 @@ impl RpcServer for RpcServerImpl {
     async fn upload_segment(&self, segment: SegmentWithProof) -> RpcResult<()> {
         debug!("ionian_uploadSegment()");
 
-        let log_store = self.log_store()?;
-
         // TODO(qhz): allow to cache small files before log entry retrieved from blockchain.
-        let tx_seq = match log_store.get_tx_seq_by_data_root(&segment.root)? {
+        let tx_seq = match self.ctx.log_store.get_tx_seq_by_data_root(&segment.root)? {
             Some(seq) => seq,
             None => return Err(error::invalid_params("root", "data root not found")),
         };
 
         // Transaction already finalized for the specified file data root.
-        if log_store.check_tx_completed(tx_seq)? {
+        if self.ctx.log_store.check_tx_completed(tx_seq)? {
             return Err(error::invalid_params(
                 "root",
                 "already uploaded and finalized",
             ));
         }
 
-        let tx = match log_store.get_tx_by_seq_number(tx_seq)? {
+        let tx = match self.ctx.log_store.get_tx_by_seq_number(tx_seq)? {
             Some(tx) => tx,
             None => return Err(error::invalid_params("root", "data root not found")),
         };
@@ -56,7 +52,8 @@ impl RpcServer for RpcServerImpl {
 
         // Chunk pool will validate the data size.
         let chunk_index = segment.chunk_index();
-        self.chunk_pool()?
+        self.ctx
+            .chunk_pool
             .add_chunks(segment.root, segment.data, chunk_index)
             .await?;
 
@@ -86,9 +83,8 @@ impl RpcServer for RpcServerImpl {
             ));
         }
 
-        let log_store = self.log_store()?;
-        let tx_seq = try_option!(log_store.get_tx_seq_by_data_root(&data_root)?);
-        let segment = try_option!(log_store.get_chunks_by_tx_and_index_range(
+        let tx_seq = try_option!(self.ctx.log_store.get_tx_seq_by_data_root(&data_root)?);
+        let segment = try_option!(self.ctx.log_store.get_chunks_by_tx_and_index_range(
             tx_seq,
             start_index as usize,
             end_index as usize
@@ -101,13 +97,12 @@ impl RpcServer for RpcServerImpl {
     async fn get_file_info(&self, data_root: DataRoot) -> RpcResult<Option<FileInfo>> {
         debug!("get_file_info()");
 
-        let log_store = self.log_store()?;
-        let tx_seq = try_option!(log_store.get_tx_seq_by_data_root(&data_root)?);
-        let tx = try_option!(log_store.get_tx_by_seq_number(tx_seq)?);
+        let tx_seq = try_option!(self.ctx.log_store.get_tx_seq_by_data_root(&data_root)?);
+        let tx = try_option!(self.ctx.log_store.get_tx_by_seq_number(tx_seq)?);
 
         Ok(Some(FileInfo {
             tx,
-            finalized: log_store.check_tx_completed(tx_seq)?,
+            finalized: self.ctx.log_store.check_tx_completed(tx_seq)?,
         }))
     }
 }
@@ -127,20 +122,6 @@ impl RpcServerImpl {
         match &self.ctx.network_send {
             Some(network_send) => Ok(network_send),
             None => Err(error::internal_error("Network send is not initialized.")),
-        }
-    }
-
-    fn chunk_pool(&self) -> Result<&Arc<MemoryChunkPool>, jsonrpsee::core::Error> {
-        match &self.ctx.chunk_pool {
-            Some(pool) => Ok(pool),
-            None => Err(error::internal_error("chunk pool is not initialized")),
-        }
-    }
-
-    fn log_store(&self) -> Result<&Arc<dyn Store>, jsonrpsee::core::Error> {
-        match &self.ctx.log_store {
-            Some(store) => Ok(store),
-            None => Err(error::internal_error("log store is not initialized")),
         }
     }
 }
