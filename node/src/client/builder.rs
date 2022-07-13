@@ -9,7 +9,7 @@ use rpc::RPCConfig;
 use std::sync::Arc;
 use storage::log_store::{SimpleLogStore, Store};
 use sync::{SyncSender, SyncService};
-use tokio::sync::{broadcast, mpsc};
+use tokio::sync::mpsc;
 
 macro_rules! require {
     ($component:expr, $self:ident, $e:ident) => {
@@ -39,11 +39,6 @@ struct MinerComponents {
     send: mpsc::UnboundedSender<MinerMessage>,
 }
 
-struct LogSyncComponents {
-    /// The sender to notify the log sync loop to stop.
-    send: broadcast::Sender<()>,
-}
-
 /// Builds a `Client` instance.
 ///
 /// ## Notes
@@ -56,7 +51,6 @@ pub struct ClientBuilder {
     network: Option<NetworkComponents>,
     sync: Option<SyncComponents>,
     miner: Option<MinerComponents>,
-    log_sync: Option<LogSyncComponents>,
 
     test: Option<u32>,
 }
@@ -70,7 +64,6 @@ impl ClientBuilder {
             network: None,
             sync: None,
             miner: None,
-            log_sync: None,
 
             test: None,
         }
@@ -189,12 +182,10 @@ impl ClientBuilder {
         Ok(self)
     }
 
-    pub fn with_log_sync(mut self, config: LogSyncConfig) -> Result<Self, String> {
+    pub fn with_log_sync(self, config: LogSyncConfig) -> Result<Self, String> {
         let executor = require!("sync", self, runtime_context).clone().executor;
         let store = require!("sync", self, store).clone();
-        let stop_sender =
-            LogSyncManager::spawn(config, executor, store).map_err(|e| e.to_string())?;
-        self.log_sync = Some(LogSyncComponents { send: stop_sender });
+        LogSyncManager::spawn(config, executor, store).map_err(|e| e.to_string())?;
         Ok(self)
     }
 
