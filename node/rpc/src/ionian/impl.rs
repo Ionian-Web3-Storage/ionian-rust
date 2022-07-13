@@ -25,7 +25,6 @@ impl RpcServer for RpcServerImpl {
         })
     }
 
-    #[tracing::instrument(skip(self), err)]
     async fn upload_segment(&self, segment: SegmentWithProof) -> RpcResult<()> {
         debug!("ionian_uploadSegment()");
 
@@ -60,7 +59,6 @@ impl RpcServer for RpcServerImpl {
         Ok(())
     }
 
-    #[tracing::instrument(skip(self), err)]
     async fn download_segment(
         &self,
         data_root: DataRoot,
@@ -93,7 +91,6 @@ impl RpcServer for RpcServerImpl {
         Ok(Some(Segment(segment.data)))
     }
 
-    #[tracing::instrument(skip(self), err)]
     async fn get_file_info(&self, data_root: DataRoot) -> RpcResult<Option<FileInfo>> {
         debug!("get_file_info()");
 
