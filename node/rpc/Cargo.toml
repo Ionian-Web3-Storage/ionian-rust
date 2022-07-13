@@ -18,6 +18,8 @@ tokio = { version = "1.19.2", features = ["macros", "sync"] }
 tracing = "0.1.35"
 chunk_pool = { path = "../chunk_pool" }
 storage = { path = "../storage" }
+merkle_light = { path = "../../common/merkle_light" }
+merkle_tree = { path = "../../common/merkle_tree"}
 
 [dev-dependencies]
 serde_json = "1.0.82"

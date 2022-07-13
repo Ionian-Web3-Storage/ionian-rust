@@ -1,6 +1,6 @@
 use super::api::RpcServer;
 use crate::error;
-use crate::types::{FileInfo, RpcResult, Segment, Status};
+use crate::types::{FileInfo, RpcResult, Segment, SegmentWithProof, Status};
 use crate::Context;
 use chunk_pool::MemoryChunkPool;
 use jsonrpsee::core::async_trait;
@@ -28,31 +28,36 @@ impl RpcServer for RpcServerImpl {
     }
 
     #[tracing::instrument(skip(self), err)]
-    async fn upload_segment(
-        &self,
-        data_root: DataRoot,
-        data_segment: Segment,
-        start_index: u32,
-        _proof: Option<Vec<u8>>,
-    ) -> RpcResult<()> {
+    async fn upload_segment(&self, segment: SegmentWithProof) -> RpcResult<()> {
         debug!("ionian_uploadSegment()");
 
-        // Transaction already finalized for the specified file data root.
         let log_store = self.log_store()?;
-        if let Some(tx_seq) = log_store.get_tx_seq_by_data_root(&data_root)? {
-            if log_store.check_tx_completed(tx_seq)? {
-                return Err(error::invalid_params(
-                    "data_root",
-                    "already uploaded and finalized",
-                ));
-            }
+
+        // TODO(qhz): allow to cache small files before log entry retrieved from blockchain.
+        let tx_seq = match log_store.get_tx_seq_by_data_root(&segment.root)? {
+            Some(seq) => seq,
+            None => return Err(error::invalid_params("root", "data root not found")),
+        };
+
+        // Transaction already finalized for the specified file data root.
+        if log_store.check_tx_completed(tx_seq)? {
+            return Err(error::invalid_params(
+                "root",
+                "already uploaded and finalized",
+            ));
         }
 
-        // TODO(qhz): unmarshal and validate proof
+        let tx = match log_store.get_tx_by_seq_number(tx_seq)? {
+            Some(tx) => tx,
+            None => return Err(error::invalid_params("root", "data root not found")),
+        };
+
+        segment.validate(tx.size as usize)?;
 
         // Chunk pool will validate the data size.
+        let chunk_index = segment.chunk_index();
         self.chunk_pool()?
-            .add_chunks(data_root, data_segment.0, start_index as usize)
+            .add_chunks(segment.root, segment.data, chunk_index)
             .await?;
 
         Ok(())

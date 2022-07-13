@@ -1,4 +1,4 @@
-use crate::types::{FileInfo, RpcResult, Segment, Status};
+use crate::types::{FileInfo, RpcResult, Segment, SegmentWithProof, Status};
 use jsonrpsee::proc_macros::rpc;
 use shared_types::DataRoot;
 
@@ -8,13 +8,7 @@ pub trait Rpc {
     async fn get_status(&self) -> RpcResult<Status>;
 
     #[method(name = "uploadSegment")]
-    async fn upload_segment(
-        &self,
-        data_root: DataRoot,
-        data_segment: Segment,
-        start_index: u32,
-        proof: Option<Vec<u8>>,
-    ) -> RpcResult<()>;
+    async fn upload_segment(&self, segment: SegmentWithProof) -> RpcResult<()>;
 
     #[method(name = "downloadSegment")]
     async fn download_segment(

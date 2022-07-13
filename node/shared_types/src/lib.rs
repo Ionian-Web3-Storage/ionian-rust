@@ -43,7 +43,7 @@ impl<H: Hasher> Hashable<H> for Chunk {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, DeriveEncode, DeriveDecode)]
+#[derive(Clone, Debug, PartialEq, DeriveEncode, DeriveDecode, Deserialize, Serialize)]
 pub struct Proof {
     pub lemma: Vec<H256>,
     pub path: Vec<bool>,

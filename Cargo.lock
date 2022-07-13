@@ -5294,6 +5294,8 @@ dependencies = [
  "chunk_pool",
  "futures",
  "jsonrpsee",
+ "merkle_light",
+ "merkle_tree",
  "network",
  "serde",
  "serde_json",
