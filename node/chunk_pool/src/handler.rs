@@ -43,15 +43,12 @@ impl ChunkPoolHandler {
             None => return Ok(false),
         };
 
-        let mut segments = match file.segments {
-            Some(seg) => seg,
-            None => return Ok(false),
-        };
-
-        // When failed to write chunks or finalize transaction in rare case,
-        // client need to upload the whole file again.
-        while let Some(segment) = segments.pop_front() {
-            self.log_store.put_chunks(file.tx_seq, segment).await?;
+        if let Some(mut segments) = file.segments {
+            // When failed to write chunks or finalize transaction in rare case,
+            // client need to upload the whole file again.
+            while let Some(segment) = segments.pop_front() {
+                self.log_store.put_chunks(file.tx_seq, segment).await?;
+            }
         }
 
         self.log_store.finalize_tx(file.tx_seq).await?;
