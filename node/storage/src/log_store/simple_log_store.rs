@@ -399,6 +399,8 @@ impl LogStoreWrite for SimpleLogStore {
         let tx = maybe_tx.unwrap();
         if tx.size <= self.chunk_batch_size as u64 * CHUNK_SIZE as u64 {
             // Only one batch, so there is no need for a top tree.
+            self.kvdb
+                .put(COL_TX_COMPLETED, &tx_seq.to_be_bytes(), &[0])?;
             return Ok(());
         }
         let chunk_index_end = (tx.size / CHUNK_SIZE as u64) as usize;
