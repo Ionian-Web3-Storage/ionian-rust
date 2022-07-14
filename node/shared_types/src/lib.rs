@@ -37,9 +37,8 @@ pub struct Chunk(pub [u8; CHUNK_SIZE]);
 
 impl<H: Hasher> Hashable<H> for Chunk {
     fn hash(&self, state: &mut H) {
-        let mut prepended = vec![LEAF];
-        prepended.extend_from_slice(&self.0);
-        state.write(&prepended)
+        state.write(&[LEAF]);
+        state.write(&self.0)
     }
 }
 

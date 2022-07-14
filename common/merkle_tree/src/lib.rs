@@ -82,10 +82,9 @@ mod tests {
         for (test_index, n_chunk) in [6, 7].into_iter().enumerate() {
             let mut data = Vec::with_capacity(n_chunk);
             for _ in 0..n_chunk {
-                let mut chunk_for_hash = vec![LEAF];
-                chunk_for_hash.extend_from_slice(&[0; 256]);
                 let mut a = RawLeafSha3Algorithm::default();
-                a.write(&chunk_for_hash);
+                a.write(&[LEAF]);
+                a.write(&[0; 256]);
                 data.push(a.hash());
             }
             let mt = MerkleTree::<_, RawLeafSha3Algorithm>::new(data);
