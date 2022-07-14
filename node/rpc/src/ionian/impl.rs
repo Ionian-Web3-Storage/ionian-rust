@@ -29,20 +29,25 @@ impl RpcServer for RpcServerImpl {
         debug!("ionian_uploadSegment()");
 
         // TODO(qhz): allow to cache small files before log entry retrieved from blockchain.
-        let tx_seq = match self.ctx.log_store.get_tx_seq_by_data_root(&segment.root)? {
+        let tx_seq = match self
+            .ctx
+            .log_store
+            .get_tx_seq_by_data_root(&segment.root)
+            .await?
+        {
             Some(seq) => seq,
             None => return Err(error::invalid_params("root", "data root not found")),
         };
 
         // Transaction already finalized for the specified file data root.
-        if self.ctx.log_store.check_tx_completed(tx_seq)? {
+        if self.ctx.log_store.check_tx_completed(tx_seq).await? {
             return Err(error::invalid_params(
                 "root",
                 "already uploaded and finalized",
             ));
         }
 
-        let tx = match self.ctx.log_store.get_tx_by_seq_number(tx_seq)? {
+        let tx = match self.ctx.log_store.get_tx_by_seq_number(tx_seq).await? {
             Some(tx) => tx,
             None => return Err(error::invalid_params("root", "data root not found")),
         };
@@ -81,12 +86,18 @@ impl RpcServer for RpcServerImpl {
             ));
         }
 
-        let tx_seq = try_option!(self.ctx.log_store.get_tx_seq_by_data_root(&data_root)?);
-        let segment = try_option!(self.ctx.log_store.get_chunks_by_tx_and_index_range(
-            tx_seq,
-            start_index as usize,
-            end_index as usize
-        )?);
+        let tx_seq = try_option!(
+            self.ctx
+                .log_store
+                .get_tx_seq_by_data_root(&data_root)
+                .await?
+        );
+        let segment = try_option!(
+            self.ctx
+                .log_store
+                .get_chunks_by_tx_and_index_range(tx_seq, start_index as usize, end_index as usize)
+                .await?
+        );
 
         Ok(Some(Segment(segment.data)))
     }
@@ -94,12 +105,17 @@ impl RpcServer for RpcServerImpl {
     async fn get_file_info(&self, data_root: DataRoot) -> RpcResult<Option<FileInfo>> {
         debug!("get_file_info()");
 
-        let tx_seq = try_option!(self.ctx.log_store.get_tx_seq_by_data_root(&data_root)?);
-        let tx = try_option!(self.ctx.log_store.get_tx_by_seq_number(tx_seq)?);
+        let tx_seq = try_option!(
+            self.ctx
+                .log_store
+                .get_tx_seq_by_data_root(&data_root)
+                .await?
+        );
+        let tx = try_option!(self.ctx.log_store.get_tx_by_seq_number(tx_seq).await?);
 
         Ok(Some(FileInfo {
             tx,
-            finalized: self.ctx.log_store.check_tx_completed(tx_seq)?,
+            finalized: self.ctx.log_store.check_tx_completed(tx_seq).await?,
         }))
     }
 }

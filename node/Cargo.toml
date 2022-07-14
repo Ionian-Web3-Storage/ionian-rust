@@ -18,6 +18,7 @@ router = { path = "./router" }
 rpc = { path = "./rpc" }
 shared_types = { path = "./shared_types" }
 storage = { path = "./storage" }
+storage-async = { path = "./storage-async" }
 sync = { path = "./sync" }
 task_executor = { path = "../common/task_executor" }
 tokio = { version = "1.19.2", features = ["full"] }

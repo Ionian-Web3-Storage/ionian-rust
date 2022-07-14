@@ -2,7 +2,7 @@ use super::mem_pool::MemoryChunkPool;
 use anyhow::Result;
 use shared_types::DataRoot;
 use std::sync::Arc;
-use storage::log_store::Store;
+use storage_async::Store;
 use tokio::sync::mpsc::UnboundedReceiver;
 
 /// Handle the cached file when uploaded completely and verified from blockchain.
@@ -10,14 +10,14 @@ use tokio::sync::mpsc::UnboundedReceiver;
 pub struct ChunkPoolHandler {
     receiver: UnboundedReceiver<DataRoot>,
     mem_pool: Arc<MemoryChunkPool>,
-    log_store: Arc<dyn Store>,
+    log_store: Arc<Store>,
 }
 
 impl ChunkPoolHandler {
     pub(crate) fn new(
         receiver: UnboundedReceiver<DataRoot>,
         mem_pool: Arc<MemoryChunkPool>,
-        log_store: Arc<dyn Store>,
+        log_store: Arc<Store>,
     ) -> Self {
         ChunkPoolHandler {
             receiver,
@@ -49,10 +49,10 @@ impl ChunkPoolHandler {
         // When failed to write chunks or finalize transaction in rare case,
         // client need to upload the whole file again.
         while let Some(segment) = segments.pop_front() {
-            self.log_store.put_chunks(file.tx_seq, segment)?;
+            self.log_store.put_chunks(file.tx_seq, segment).await?;
         }
 
-        self.log_store.finalize_tx(file.tx_seq)?;
+        self.log_store.finalize_tx(file.tx_seq).await?;
 
         Ok(true)
     }

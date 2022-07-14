@@ -6,7 +6,7 @@ use std::collections::VecDeque;
 use std::ops::Add;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use storage::log_store::Store;
+use storage_async::Store;
 use tokio::sync::mpsc::UnboundedSender;
 
 // TODO(qhz): Suppose that file uploaded in sequence and following scenarios are to be resolved:
@@ -254,12 +254,12 @@ impl Inner {
 /// and data root verified on blockchain.
 pub struct MemoryChunkPool {
     inner: Mutex<Inner>,
-    log_store: Arc<dyn Store>,
+    log_store: Arc<Store>,
     sender: UnboundedSender<DataRoot>,
 }
 
 impl MemoryChunkPool {
-    pub(crate) fn new(log_store: Arc<dyn Store>, sender: UnboundedSender<DataRoot>) -> Self {
+    pub(crate) fn new(log_store: Arc<Store>, sender: UnboundedSender<DataRoot>) -> Self {
         MemoryChunkPool {
             inner: Default::default(),
             log_store,
@@ -299,8 +299,8 @@ impl MemoryChunkPool {
     }
 
     async fn get_tx_by_root(&self, root: &DataRoot) -> Result<Option<Transaction>> {
-        match self.log_store.get_tx_seq_by_data_root(root)? {
-            Some(tx_seq) => self.log_store.get_tx_by_seq_number(tx_seq),
+        match self.log_store.get_tx_seq_by_data_root(root).await? {
+            Some(tx_seq) => self.log_store.get_tx_by_seq_number(tx_seq).await,
             None => Ok(None),
         }
     }
@@ -370,7 +370,7 @@ impl MemoryChunkPool {
             // TODO(qhz): error handling
             // 1. Push the failed segment back to front. (enhance store to return Err(ChunkArray))
             // 2. Put the incompleted segments back to memory pool.
-            if let Err(e) = self.log_store.put_chunks(tx_seq, seg) {
+            if let Err(e) = self.log_store.put_chunks(tx_seq, seg).await {
                 self.inner
                     .lock()
                     .await

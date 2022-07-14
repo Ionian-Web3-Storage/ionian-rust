@@ -11,10 +11,7 @@ use std::sync::Arc;
 
 pub const NUM_CHUNKS_PER_SEGMENT: usize = 1024;
 
-pub fn unbounded(
-    // TODO(qhz): change to async storage
-    log_store: Arc<dyn storage::log_store::Store>,
-) -> (Arc<MemoryChunkPool>, ChunkPoolHandler) {
+pub fn unbounded(log_store: Arc<storage_async::Store>) -> (Arc<MemoryChunkPool>, ChunkPoolHandler) {
     let (sender, receiver) = tokio::sync::mpsc::unbounded_channel();
 
     let mem_pool = Arc::new(mem_pool::MemoryChunkPool::new(log_store.clone(), sender));

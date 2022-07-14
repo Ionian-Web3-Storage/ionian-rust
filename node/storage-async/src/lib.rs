@@ -2,7 +2,7 @@
 extern crate tracing;
 
 use anyhow::bail;
-use shared_types::{Chunk, ChunkArray, ChunkArrayWithProof, Transaction};
+use shared_types::{Chunk, ChunkArray, ChunkArrayWithProof, DataRoot, Transaction};
 use std::sync::Arc;
 use storage::{error, error::Result, log_store::Store as LogStore};
 use task_executor::TaskExecutor;
@@ -18,21 +18,7 @@ macro_rules! delegate {
 
     (fn $name:tt($($v:ident: $t:ty),*) -> $ret:ty) => {
         pub async fn $name(&self, $($v: $t),*) -> $ret {
-            let store = self.store.clone();
-            let (tx, rx) = oneshot::channel();
-
-            self.executor.spawn_blocking(
-                move || {
-                    let res = store.$name($($v),*);
-
-                    if let Err(_) = tx.send(res) {
-                        error!("Unable to complete async storage operation: the receiver dropped");
-                    }
-                },
-                WORKER_TASK_NAME,
-            );
-
-            rx.await.unwrap_or_else(|_| bail!(error::Error::Custom("Receiver error".to_string())))
+            self.spawn(move |store| store.$name($($v),*)).await
         }
     };
 }
@@ -57,4 +43,34 @@ impl Store {
     delegate!(fn get_chunks_with_proof_by_tx_and_index_range(tx_seq: u64, index_start: usize, index_end: usize) -> Result<Option<ChunkArrayWithProof>>);
     delegate!(fn get_tx_by_seq_number(seq: u64) -> Result<Option<Transaction>>);
     delegate!(fn put_chunks(tx_seq: u64, chunks: ChunkArray) -> Result<()>);
+    delegate!(fn finalize_tx(tx_seq: u64) -> Result<()>);
+
+    pub async fn get_tx_seq_by_data_root(&self, data_root: &DataRoot) -> Result<Option<u64>> {
+        let root = *data_root;
+        self.spawn(move |store| store.get_tx_seq_by_data_root(&root))
+            .await
+    }
+
+    async fn spawn<T, F>(&self, f: F) -> Result<T>
+    where
+        F: FnOnce(Arc<dyn LogStore>) -> Result<T> + Send + 'static,
+        T: Send + 'static,
+    {
+        let store = self.store.clone();
+        let (tx, rx) = oneshot::channel();
+
+        self.executor.spawn_blocking(
+            move || {
+                let res = f(store);
+
+                if tx.send(res).is_err() {
+                    error!("Unable to complete async storage operation: the receiver dropped");
+                }
+            },
+            WORKER_TASK_NAME,
+        );
+
+        rx.await
+            .unwrap_or_else(|_| bail!(error::Error::Custom("Receiver error".to_string())))
+    }
 }

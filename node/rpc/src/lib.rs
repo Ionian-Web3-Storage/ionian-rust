@@ -14,7 +14,7 @@ use network::NetworkGlobals;
 use network::NetworkMessage;
 use std::error::Error;
 use std::sync::Arc;
-use storage::log_store::Store;
+use storage_async::Store;
 use sync::SyncSender;
 use task_executor::ShutdownReason;
 use tokio::sync::mpsc::UnboundedSender;
@@ -34,7 +34,7 @@ pub struct Context {
     pub network_send: Option<UnboundedSender<NetworkMessage>>,
     pub sync_send: Option<SyncSender>,
     pub chunk_pool: Arc<MemoryChunkPool>,
-    pub log_store: Arc<dyn Store>,
+    pub log_store: Arc<Store>,
     pub shutdown_sender: Sender<ShutdownReason>,
 }
 
