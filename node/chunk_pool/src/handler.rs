@@ -34,6 +34,8 @@ impl ChunkPoolHandler {
             None => return Ok(false),
         };
 
+        debug!("Received task to finalize transaction for file {}", root);
+
         // TODO(qhz): remove from memory pool after transaction finalized,
         // when store support to write chunks with reference.
         let file = match self.mem_pool.remove_file(&root).await {
@@ -54,10 +56,14 @@ impl ChunkPoolHandler {
 
         self.log_store.finalize_tx(file.tx_seq).await?;
 
+        debug!("Transaction finalized for seq {}", file.tx_seq);
+
         Ok(true)
     }
 
     pub async fn run(mut self) {
+        info!("Worker started to finalize transactions");
+
         loop {
             if let Err(e) = self.handle().await {
                 warn!("Failed to write chunks or finalize transaction, {:?}", e);

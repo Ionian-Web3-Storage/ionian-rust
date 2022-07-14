@@ -65,6 +65,10 @@ impl LogSyncManager {
         start_tx_seq: u64,
     ) -> Result<()> {
         let end_tx_seq = self.log_fetcher.num_log_entries().await?;
+        if start_tx_seq >= end_tx_seq {
+            return Ok(());
+        }
+
         info!("start_tx_seq={} end_tx_seq={}", start_tx_seq, end_tx_seq);
         for i in (start_tx_seq..end_tx_seq).step_by(self.config.fetch_batch_size) {
             let log_list = self

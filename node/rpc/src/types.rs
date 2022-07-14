@@ -1,10 +1,12 @@
 use crate::error;
 use chunk_pool::NUM_CHUNKS_PER_SEGMENT;
 use jsonrpsee::core::Error as RpcError;
+use merkle_light::hash::Algorithm;
 use merkle_light::merkle::MerkleTree;
-use merkle_tree::RawLeafSha3Algorithm;
+use merkle_tree::{RawLeafSha3Algorithm, LEAF};
 use serde::{Deserialize, Serialize};
 use shared_types::{DataRoot, Proof, Transaction, CHUNK_SIZE};
+use std::hash::Hasher;
 
 pub(crate) type RpcResult<T> = Result<T, RpcError>;
 
@@ -87,9 +89,14 @@ impl SegmentWithProof {
     }
 
     fn calculate_segment_merkle_root(&self) -> [u8; 32] {
-        let chunks = self.data.chunks_exact(CHUNK_SIZE);
-        let tree: MerkleTree<[u8; 32], RawLeafSha3Algorithm> = MerkleTree::from_data(chunks);
-        tree.root()
+        let mut a = RawLeafSha3Algorithm::default();
+        let hashes = self.data.chunks_exact(CHUNK_SIZE).map(|x| {
+            a.reset();
+            a.write(&[LEAF]);
+            a.write(x);
+            a.hash()
+        });
+        MerkleTree::<_, RawLeafSha3Algorithm>::new(hashes).root()
     }
 
     fn validate_proof(&self, num_segments: usize) -> RpcResult<()> {
@@ -123,8 +130,7 @@ impl SegmentWithProof {
 
     /// Returns the index of first chunk in the segment.
     pub fn chunk_index(&self) -> usize {
-        let segment_size = NUM_CHUNKS_PER_SEGMENT * CHUNK_SIZE;
-        self.index as usize * segment_size
+        self.index as usize * NUM_CHUNKS_PER_SEGMENT
     }
 }
 

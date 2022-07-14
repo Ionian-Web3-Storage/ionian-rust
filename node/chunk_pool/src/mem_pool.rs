@@ -202,8 +202,11 @@ impl Inner {
         assert!(self.total_writings > 0);
         self.total_writings -= 1;
 
+        debug!("Succeeded to write segment, root={}, next_index={}({}), pool_total_chunks={}, total_writings={}",
+            root, file.next_index, file.total_chunks, self.total_chunks, self.total_writings);
+
         // All chunks of file written into store.
-        file.total_chunks > 0 && file.next_index == file.total_chunks
+        file.total_chunks > 0 && file.next_index >= file.total_chunks
     }
 
     fn on_write_failed(&mut self, root: &DataRoot, cached_segs_chunks: usize) {
@@ -347,6 +350,9 @@ impl MemoryChunkPool {
             maybe_tx = self.get_tx_by_root(&root).await?;
         }
 
+        debug!("Begin to cache or write segment, root={}, segment_size={}, start_chunk_index={}, tx={:?}",
+            root, segment.len(), start_index, maybe_tx);
+
         // Cache segment in memory if log entry not retrieved yet, or write into store directly.
         let (tx_seq, mut segments) = match self.inner.lock().await.cache_or_write_segment(
             root,
@@ -360,7 +366,7 @@ impl MemoryChunkPool {
 
         let mut total_chunks_to_write = 0;
         for seg in segments.iter() {
-            total_chunks_to_write += seg.data.len();
+            total_chunks_to_write += seg.data.len() / CHUNK_SIZE;
         }
         let pending_seg_chunks = total_chunks_to_write - num_chunks;
 
@@ -390,6 +396,7 @@ impl MemoryChunkPool {
                 // Channel receiver will not be dropped until program exit.
                 bail!(anyhow!("channel send error: {}", e));
             }
+            debug!("Queue to finalize transaction for file {}", root);
         }
 
         Ok(())

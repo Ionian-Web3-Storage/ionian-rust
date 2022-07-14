@@ -112,10 +112,9 @@ impl Proof {
 
         if proof.item() != *leaf_hash {
             bail!(
-                "data hash mismatch: \n leaf_hash={:?} \n proof_item={:?} \n leaf_hash={:?}",
+                "data hash mismatch: leaf_hash={:?} proof_item={:?}",
                 leaf_hash,
                 proof.item(),
-                leaf_hash
             );
         }
 
