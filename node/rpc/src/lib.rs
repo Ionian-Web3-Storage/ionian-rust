@@ -34,7 +34,7 @@ pub struct Context {
     pub network_send: Option<UnboundedSender<NetworkMessage>>,
     pub sync_send: Option<SyncSender>,
     pub chunk_pool: Arc<MemoryChunkPool>,
-    pub log_store: Arc<Store>,
+    pub log_store: Store,
     pub shutdown_sender: Sender<ShutdownReason>,
 }
 

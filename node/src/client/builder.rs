@@ -53,6 +53,7 @@ struct LogSyncComponents {
 pub struct ClientBuilder {
     runtime_context: Option<RuntimeContext>,
     store: Option<Arc<dyn Store>>,
+    async_store: Option<storage_async::Store>,
     network: Option<NetworkComponents>,
     sync: Option<SyncComponents>,
     miner: Option<MinerComponents>,
@@ -67,6 +68,7 @@ impl ClientBuilder {
         Self {
             runtime_context: None,
             store: None,
+            async_store: None,
             network: None,
             sync: None,
             miner: None,
@@ -84,10 +86,17 @@ impl ClientBuilder {
 
     /// Initializes in-memory storage.
     pub fn with_memory_store(mut self) -> Result<Self, String> {
-        let store = SimpleLogStore::memorydb()
-            .map_err(|e| format!("Unable to start in-memory store: {:?}", e))?;
+        let store = Arc::new(
+            SimpleLogStore::memorydb()
+                .map_err(|e| format!("Unable to start in-memory store: {:?}", e))?,
+        );
 
-        self.store = Some(Arc::new(store));
+        self.store = Some(store.clone());
+
+        if let Some(ctx) = self.runtime_context.as_ref() {
+            self.async_store = Some(storage_async::Store::new(store, ctx.executor.clone()));
+        }
+
         Ok(self)
     }
 
@@ -169,8 +178,7 @@ impl ClientBuilder {
         }
 
         let executor = require!("rpc", self, runtime_context).clone().executor;
-        let log_store = require!("rpc", self, store).clone();
-        let async_store = Arc::new(storage_async::Store::new(log_store, executor.clone()));
+        let async_store = require!("rpc", self, async_store).clone();
 
         let (chunk_pool, chunk_pool_handler) = chunk_pool::unbounded(async_store.clone());
 

@@ -10,14 +10,14 @@ use tokio::sync::mpsc::UnboundedReceiver;
 pub struct ChunkPoolHandler {
     receiver: UnboundedReceiver<DataRoot>,
     mem_pool: Arc<MemoryChunkPool>,
-    log_store: Arc<Store>,
+    log_store: Store,
 }
 
 impl ChunkPoolHandler {
     pub(crate) fn new(
         receiver: UnboundedReceiver<DataRoot>,
         mem_pool: Arc<MemoryChunkPool>,
-        log_store: Arc<Store>,
+        log_store: Store,
     ) -> Self {
         ChunkPoolHandler {
             receiver,

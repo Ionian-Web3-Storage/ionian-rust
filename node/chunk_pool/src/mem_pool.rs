@@ -4,7 +4,6 @@ use hashlink::LinkedHashMap;
 use shared_types::{ChunkArray, DataRoot, Transaction, CHUNK_SIZE};
 use std::collections::VecDeque;
 use std::ops::Add;
-use std::sync::Arc;
 use std::time::{Duration, Instant};
 use storage_async::Store;
 use tokio::sync::mpsc::UnboundedSender;
@@ -254,12 +253,12 @@ impl Inner {
 /// and data root verified on blockchain.
 pub struct MemoryChunkPool {
     inner: Mutex<Inner>,
-    log_store: Arc<Store>,
+    log_store: Store,
     sender: UnboundedSender<DataRoot>,
 }
 
 impl MemoryChunkPool {
-    pub(crate) fn new(log_store: Arc<Store>, sender: UnboundedSender<DataRoot>) -> Self {
+    pub(crate) fn new(log_store: Store, sender: UnboundedSender<DataRoot>) -> Self {
         MemoryChunkPool {
             inner: Default::default(),
             log_store,
