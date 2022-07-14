@@ -12,6 +12,3 @@ rpc_listen_address = "127.0.0.1:5678"
 
 log_config_file = "log_config"
 
-log_contract_address = "0x532ea775ad1d08b2b3f703d87019daf94db04622"
-blockchain_rpc_endpoint = "http://evmtestnet.confluxrpc.com"
-
