@@ -1,0 +1,10 @@
+[package]
+name = "gossip_cache"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+hashlink = "0.8.0"
+network = { path = "../network" }
+parking_lot = "0.12.1"
+rand = "0.8.5"

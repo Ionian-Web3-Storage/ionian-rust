@@ -10,6 +10,7 @@ ctrlc = "3.2.2"
 error-chain = "0.12.4"
 exit-future = "0.2.0"
 futures = "0.3.21"
+gossip_cache = { path = "./gossip_cache" }
 ionian_version = { path = "../common/ionian_version" }
 log_entry_sync = { path = "./log_entry_sync" }
 miner = { path = "./miner" }

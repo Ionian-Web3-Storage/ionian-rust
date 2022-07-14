@@ -2312,6 +2312,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "gossip_cache"
+version = "0.1.0"
+dependencies = [
+ "hashlink 0.8.0",
+ "network",
+ "parking_lot 0.12.1",
+ "rand 0.8.5",
+]
+
+[[package]]
 name = "group"
 version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2720,6 +2730,7 @@ dependencies = [
  "error-chain",
  "exit-future",
  "futures",
+ "gossip_cache",
  "ionian_version",
  "libp2p",
  "log_entry_sync",
@@ -5277,11 +5288,13 @@ dependencies = [
  "chrono",
  "error-chain",
  "futures",
+ "gossip_cache",
  "lazy_static",
  "miner",
  "network",
  "shared_types",
  "storage",
+ "storage-async",
  "sync",
  "task_executor",
  "tokio",
@@ -5996,6 +6009,7 @@ version = "0.1.0"
 dependencies = [
  "channel",
  "chrono",
+ "gossip_cache",
  "network",
  "rand 0.8.5",
  "shared_types",

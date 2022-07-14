@@ -1,7 +1,7 @@
-use crate::{timestamp_now, SyncNetworkContext};
+use crate::{GossipCache, SyncNetworkContext};
 use network::{
-    rpc::GetChunksRequest, types::FindFile, Multiaddr, NetworkMessage, PeerAction, PeerId,
-    PubsubMessage, ReportSource, SyncId as RequestId,
+    multiaddr::Protocol, rpc::GetChunksRequest, types::FindFile, Multiaddr, NetworkMessage,
+    PeerAction, PeerId, PubsubMessage, ReportSource, SyncId as RequestId,
 };
 use rand::seq::IteratorRandom;
 use shared_types::{ChunkArray, ChunkArrayWithProof, DataRoot, CHUNK_SIZE};
@@ -11,6 +11,11 @@ use std::{
     time::{Duration, Instant},
 };
 use storage_async::Store;
+
+fn timestamp_now() -> u32 {
+    let timestamp = chrono::Utc::now().timestamp();
+    u32::try_from(timestamp).expect("The year is between 1970 and 2106")
+}
 
 const CHUNK_BATCH_SIZE: usize = 1024;
 
@@ -60,12 +65,21 @@ struct SyncPeers {
 }
 
 impl SyncPeers {
-    pub fn add_new_peer(&mut self, peer_id: PeerId, addr: Multiaddr) {
-        self.peers.entry(peer_id).or_insert(PeerInfo {
-            addr,
-            state: PeerState::Found,
-            since: Instant::now(),
-        });
+    pub fn add_new_peer(&mut self, peer_id: PeerId, addr: Multiaddr) -> bool {
+        if self.peers.contains_key(&peer_id) {
+            return false;
+        }
+
+        self.peers.insert(
+            peer_id,
+            PeerInfo {
+                addr,
+                state: PeerState::Found,
+                since: Instant::now(),
+            },
+        );
+
+        true
     }
 
     pub fn update_state(&mut self, peer_id: PeerId, from: PeerState, to: PeerState) {
@@ -182,6 +196,9 @@ pub struct SerialSyncController {
 
     /// Log and transaction storage.
     store: Store,
+
+    /// Cache for storing and serving gossip messages.
+    gossip_cache: Arc<GossipCache>,
 }
 
 impl SerialSyncController {
@@ -191,6 +208,7 @@ impl SerialSyncController {
         num_chunks: usize,
         ctx: Arc<SyncNetworkContext>,
         store: Store,
+        gossip_cache: Arc<GossipCache>,
     ) -> Self {
         SerialSyncController {
             tx_seq,
@@ -201,6 +219,7 @@ impl SerialSyncController {
             peers: Default::default(),
             ctx,
             store,
+            gossip_cache,
         }
     }
 
@@ -227,14 +246,28 @@ impl SerialSyncController {
     fn try_find_peers(&mut self) {
         info!(%self.tx_seq, "Finding peers");
 
-        self.publish(PubsubMessage::FindFile(FindFile {
-            tx_seq: self.tx_seq,
-            timestamp: timestamp_now(),
-        }));
+        // try from cache
+        let mut found_new_peer = false;
 
-        self.state = SyncState::FindingPeers {
-            since: Instant::now(),
-        };
+        for announcement in self.gossip_cache.get_all(self.tx_seq) {
+            // make sure peer_id is part of the address
+            let peer_id: PeerId = announcement.peer_id.into();
+            let mut addr: Multiaddr = announcement.at.into();
+            addr.push(Protocol::P2p(peer_id.into()));
+
+            found_new_peer = self.on_peer_found(peer_id, addr) || found_new_peer;
+        }
+
+        if !found_new_peer {
+            self.publish(PubsubMessage::FindFile(FindFile {
+                tx_seq: self.tx_seq,
+                timestamp: timestamp_now(),
+            }));
+
+            self.state = SyncState::FindingPeers {
+                since: Instant::now(),
+            };
+        }
     }
 
     fn try_connect(&mut self) {
@@ -312,7 +345,7 @@ impl SerialSyncController {
             .update_state(peer_id, PeerState::Connected, PeerState::Disconnecting);
     }
 
-    pub fn on_peer_found(&mut self, peer_id: PeerId, addr: Multiaddr) {
+    pub fn on_peer_found(&mut self, peer_id: PeerId, addr: Multiaddr) -> bool {
         info!(%peer_id, %addr, "Found new peer");
         self.peers.add_new_peer(peer_id, addr)
     }
