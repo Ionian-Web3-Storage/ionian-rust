@@ -138,5 +138,5 @@ pub enum NetworkMessage {
         source: ReportSource,
     },
     /// Start dialing a new peer.
-    DialPeer { address: Multiaddr },
+    DialPeer { address: Multiaddr, peer_id: PeerId },
 }

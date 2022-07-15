@@ -250,7 +250,7 @@ impl SerialSyncController {
 
         // connect to peer
         info!(%peer_id, %address, "Attempting to connect to peer");
-        self.ctx.send(NetworkMessage::DialPeer { address });
+        self.ctx.send(NetworkMessage::DialPeer { address, peer_id });
 
         self.peers
             .update_state(peer_id, PeerState::Found, PeerState::Connecting);

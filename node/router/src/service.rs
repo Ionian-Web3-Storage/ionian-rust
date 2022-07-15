@@ -230,16 +230,18 @@ impl RouterService {
                 reason,
                 source,
             } => self.libp2p.goodbye_peer(&peer_id, reason, source),
-            NetworkMessage::DialPeer { address } => {
-                // TODO(ionian-dev): do not dial if peer is already connected
-
-                match Swarm::dial(&mut self.libp2p.swarm, address.clone()) {
-                    Ok(()) => debug!(%address, "Dialing libp2p peer"),
-                    Err(err) => {
-                        // TODO(ionian-dev): consider sending a dial failed message
-                        debug!(%address, error = ?err, "Could not connect to peer")
-                    }
-                };
+            NetworkMessage::DialPeer { address, peer_id } => {
+                if self.libp2p.swarm.is_connected(&peer_id) {
+                    self.send_to_sync(SyncMessage::PeerConnected { peer_id });
+                } else {
+                    match Swarm::dial(&mut self.libp2p.swarm, address.clone()) {
+                        Ok(()) => debug!(%address, "Dialing libp2p peer"),
+                        Err(err) => {
+                            // TODO(ionian-dev): consider sending a dial failed message
+                            debug!(%address, error = ?err, "Could not connect to peer")
+                        }
+                    };
+                }
             }
         }
     }
