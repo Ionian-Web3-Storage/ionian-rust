@@ -1,7 +1,8 @@
-use crate::{controllers::SerialSyncController, timestamp_now, SyncNetworkContext};
+use crate::{controllers::SerialSyncController, SyncNetworkContext};
+use gossip_cache::GossipCache;
 use network::{
-    rpc::GetChunksRequest, rpc::RPCResponseErrorCode, types::AnnounceFile, Multiaddr,
-    NetworkGlobals, NetworkMessage, PeerId, PeerRequestId, PubsubMessage, SyncId as RequestId,
+    rpc::GetChunksRequest, rpc::RPCResponseErrorCode, Multiaddr, NetworkGlobals, NetworkMessage,
+    PeerId, PeerRequestId, SyncId as RequestId,
 };
 use shared_types::{bytes_to_chunks, ChunkArrayWithProof};
 use std::{
@@ -47,10 +48,6 @@ pub enum SyncMessage {
         request_id: RequestId,
     },
 
-    FindFileGossip {
-        tx_seq: u64,
-    },
-
     AnnounceFileGossip {
         tx_seq: u64,
         peer_id: PeerId,
@@ -82,6 +79,9 @@ pub struct SyncService {
     /// Log and transaction storage.
     store: Store,
 
+    /// Cache for storing and serving gossip messages.
+    gossip_cache: Arc<GossipCache>,
+
     /// A collection of file sync controllers.
     controllers: HashMap<u64, SerialSyncController>,
 
@@ -95,6 +95,7 @@ impl SyncService {
         network_send: mpsc::UnboundedSender<NetworkMessage>,
         network_globals: Arc<NetworkGlobals>,
         store: Arc<dyn LogStore>,
+        gossip_cache: Arc<GossipCache>,
     ) -> SyncSender {
         let (sync_send, sync_recv) = channel::Channel::unbounded();
 
@@ -108,6 +109,7 @@ impl SyncService {
             ctx: Arc::new(SyncNetworkContext::new(network_send)),
             network_globals,
             store,
+            gossip_cache,
             controllers: Default::default(),
             heartbeat,
         };
@@ -133,12 +135,6 @@ impl SyncService {
                 _ = self.heartbeat.tick() => self.on_heartbeat(),
             }
         }
-    }
-
-    fn publish(&mut self, msg: PubsubMessage) {
-        self.ctx.send(NetworkMessage::Publish {
-            messages: vec![msg],
-        });
     }
 
     async fn on_sync_msg(&mut self, msg: SyncMessage) {
@@ -179,10 +175,6 @@ impl SyncService {
                 request_id,
             } => {
                 self.on_rpc_error(peer_id, request_id);
-            }
-
-            SyncMessage::FindFileGossip { tx_seq } => {
-                self.on_find_file_gossip(tx_seq).await;
             }
 
             SyncMessage::AnnounceFileGossip {
@@ -358,6 +350,7 @@ impl SyncService {
                     num_chunks,
                     self.ctx.clone(),
                     self.store.clone(),
+                    self.gossip_cache.clone(),
                 );
 
                 entry.insert(c)
@@ -370,31 +363,6 @@ impl SyncService {
         }
 
         controller.transition();
-    }
-
-    async fn on_find_file_gossip(&mut self, tx_seq: u64) {
-        info!(%tx_seq, "Received FindFile gossip");
-
-        // check if we have it
-        if !matches!(self.store.check_tx_completed(tx_seq).await, Ok(true)) {
-            return;
-        }
-
-        // announce file
-        // TODO(ionian-dev): consider choosing a random listen address
-        let addr = match self.network_globals.listen_multiaddrs.read().first() {
-            Some(addr) => addr.clone(),
-            None => {
-                error!("No listen address available");
-                return;
-            }
-        };
-
-        self.publish(PubsubMessage::AnnounceFile(AnnounceFile {
-            tx_seq,
-            at: addr.into(),
-            timestamp: timestamp_now(),
-        }));
     }
 
     fn on_announce_file_gossip(&mut self, tx_seq: u64, peer_id: PeerId, addr: Multiaddr) {
