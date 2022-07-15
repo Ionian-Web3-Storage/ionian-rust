@@ -280,14 +280,6 @@ impl MemoryChunkPool {
 
         let num_chunks = segment.len() / CHUNK_SIZE;
 
-        // Limits the maximum number of chunks of single segment.
-        if num_chunks > super::NUM_CHUNKS_PER_SEGMENT {
-            bail!(anyhow!(
-                "exceeds the maximum cached chunks of single segment: {}",
-                super::NUM_CHUNKS_PER_SEGMENT
-            ));
-        }
-
         // Limits the maximum number of chunks of single file.
         // Note, it suppose that all chunks uploaded in sequence.
         if chunk_start_index + num_chunks > MAX_CACHED_CHUNKS_PER_FILE {

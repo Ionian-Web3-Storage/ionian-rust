@@ -54,6 +54,7 @@ impl IonianConfig {
         Ok(RPCConfig {
             enabled: self.rpc_enabled,
             listen_address,
+            chunks_per_segment: self.rpc_chunks_per_segment,
         })
     }
 

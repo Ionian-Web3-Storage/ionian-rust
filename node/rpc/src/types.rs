@@ -1,5 +1,4 @@
 use crate::error;
-use chunk_pool::NUM_CHUNKS_PER_SEGMENT;
 use jsonrpsee::core::Error as RpcError;
 use merkle_light::hash::Algorithm;
 use merkle_light::merkle::MerkleTree;
@@ -42,12 +41,16 @@ pub struct SegmentWithProof {
 
 impl SegmentWithProof {
     /// Splits file into segments and returns the total number of segments and the last segment size.
-    fn split_file_into_segments(&self, file_size: usize) -> RpcResult<(u32, usize)> {
+    fn split_file_into_segments(
+        &self,
+        file_size: usize,
+        chunks_per_segment: usize,
+    ) -> RpcResult<(u32, usize)> {
         if file_size == 0 {
             return Err(error::invalid_params("file_size", "file is empty"));
         }
 
-        let segment_size = NUM_CHUNKS_PER_SEGMENT * CHUNK_SIZE;
+        let segment_size = chunks_per_segment * CHUNK_SIZE;
         let remaining_size = file_size % segment_size;
         let mut num_segments = file_size / segment_size;
 
@@ -68,8 +71,13 @@ impl SegmentWithProof {
         }
     }
 
-    fn validate_data_size_and_index(&self, file_size: usize) -> RpcResult<u32> {
-        let (num_segments, last_segment_size) = self.split_file_into_segments(file_size)?;
+    fn validate_data_size_and_index(
+        &self,
+        file_size: usize,
+        chunks_per_segment: usize,
+    ) -> RpcResult<u32> {
+        let (num_segments, last_segment_size) =
+            self.split_file_into_segments(file_size, chunks_per_segment)?;
 
         if self.index >= num_segments {
             return Err(error::invalid_params("index", "index out of bound"));
@@ -78,7 +86,7 @@ impl SegmentWithProof {
         let data_size = if self.index == num_segments - 1 {
             last_segment_size
         } else {
-            NUM_CHUNKS_PER_SEGMENT * CHUNK_SIZE
+            chunks_per_segment * CHUNK_SIZE
         };
 
         if self.data.len() != data_size {
@@ -122,15 +130,15 @@ impl SegmentWithProof {
     }
 
     /// Validates the segment data size and proof.
-    pub fn validate(&self, file_size: usize) -> RpcResult<()> {
-        let num_segments = self.validate_data_size_and_index(file_size)?;
+    pub fn validate(&self, file_size: usize, chunks_per_segment: usize) -> RpcResult<()> {
+        let num_segments = self.validate_data_size_and_index(file_size, chunks_per_segment)?;
         self.validate_proof(num_segments as usize)?;
         Ok(())
     }
 
     /// Returns the index of first chunk in the segment.
-    pub fn chunk_index(&self) -> usize {
-        self.index as usize * NUM_CHUNKS_PER_SEGMENT
+    pub fn chunk_index(&self, chunks_per_segment: usize) -> usize {
+        self.index as usize * chunks_per_segment
     }
 }
 

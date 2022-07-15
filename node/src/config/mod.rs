@@ -22,6 +22,7 @@ build_config! {
     // rpc
     (rpc_enabled, (bool), true)
     (rpc_listen_address, (String), "127.0.0.1:5678".to_string())
+    (rpc_chunks_per_segment, (usize), 1024)
 
     // misc
     (log_config_file, (String), "log_config".to_string())

@@ -52,10 +52,10 @@ impl RpcServer for RpcServerImpl {
             None => return Err(error::invalid_params("root", "data root not found")),
         };
 
-        segment.validate(tx.size as usize)?;
+        segment.validate(tx.size as usize, self.ctx.config.chunks_per_segment)?;
 
         // Chunk pool will validate the data size.
-        let chunk_index = segment.chunk_index();
+        let chunk_index = segment.chunk_index(self.ctx.config.chunks_per_segment);
         self.ctx
             .chunk_pool
             .add_chunks(segment.root, segment.data, chunk_index)
@@ -76,12 +76,12 @@ impl RpcServer for RpcServerImpl {
             return Err(error::invalid_params("end_index", "invalid chunk index"));
         }
 
-        if end_index - start_index > chunk_pool::NUM_CHUNKS_PER_SEGMENT as u32 {
+        if end_index - start_index > self.ctx.config.chunks_per_segment as u32 {
             return Err(error::invalid_params(
                 "end_index",
                 format!(
                     "exceeds maximum chunks {}",
-                    chunk_pool::NUM_CHUNKS_PER_SEGMENT
+                    self.ctx.config.chunks_per_segment
                 ),
             ));
         }
