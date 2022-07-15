@@ -23,6 +23,9 @@ build_config! {
     (rpc_enabled, (bool), true)
     (rpc_listen_address, (String), "127.0.0.1:5678".to_string())
 
+    // db
+    (db_dir, (String), "db".to_string())
+
     // misc
     (log_config_file, (String), "log_config".to_string())
 }

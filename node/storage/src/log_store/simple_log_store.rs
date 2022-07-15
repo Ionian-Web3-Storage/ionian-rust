@@ -286,7 +286,7 @@ impl LogStoreChunkRead for BatchChunkStore {
 
 impl SimpleLogStore {
     #[allow(unused)]
-    pub fn rocksdb(path: &Path) -> Result<Self> {
+    pub fn rocksdb(path: impl AsRef<Path>) -> Result<Self> {
         let mut config = DatabaseConfig::with_columns(COL_NUM);
         config.enable_statistics = true;
         let kvdb = Arc::new(Database::open(&config, path)?);
@@ -519,6 +519,7 @@ impl LogStoreRead for SimpleLogStore {
         }
         let tx = try_option!(self.get_tx_by_seq_number(tx_seq)?);
         if index_end as u64 * CHUNK_SIZE as u64 > tx.size {
+            // TODO(ionian-dev): convert tx.size to account for padding
             bail!(Error::InvalidBatchBoundary);
         }
         if tx.size <= self.chunk_batch_size as u64 * CHUNK_SIZE as u64 {

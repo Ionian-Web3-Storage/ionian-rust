@@ -294,7 +294,7 @@ impl SyncService {
         request_id: RequestId,
         response: ChunkArrayWithProof,
     ) {
-        info!(%peer_id, ?request_id, "Received Chunks response: {:?}", response.chunks);
+        info!(%peer_id, ?request_id, "Received Chunks response: {:?} bytes", response.chunks.data.len());
 
         let tx_seq = match request_id {
             RequestId::SerialSync { tx_seq } => tx_seq,

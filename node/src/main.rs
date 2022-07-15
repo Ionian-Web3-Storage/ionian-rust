@@ -12,12 +12,13 @@ use std::error::Error;
 
 async fn start_node(context: RuntimeContext, config: IonianConfig) -> Result<Client, String> {
     let network_config = config.network_config()?;
+    let storage_config = config.storage_config()?;
     let rpc_config = config.rpc_config()?;
     let log_sync_config = config.log_sync_config()?;
 
     ClientBuilder::new()
         .with_runtime_context(context)
-        .with_memory_store()?
+        .with_rocksdb_store(&storage_config)?
         .with_network(&network_config)
         .await?
         .with_sync()?
