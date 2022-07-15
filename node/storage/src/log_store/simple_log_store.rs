@@ -170,6 +170,25 @@ impl SimpleLogStore {
         let sub_proof = sub_tree.gen_proof(offset);
         Ok(Some(sub_proof))
     }
+
+    fn get_chunks_from_tx(
+        &self,
+        tx_seq: u64,
+        index_start: usize,
+        index_end: usize,
+    ) -> Result<Option<ChunkArray>> {
+        if index_end <= index_start {
+            bail!(Error::InvalidBatchBoundary);
+        }
+        let tx = try_option!(self.get_tx_by_seq_number(tx_seq)?);
+        if tx.data.is_empty() || tx.data.len() < index_end * CHUNK_SIZE {
+            return Ok(None);
+        }
+        Ok(Some(ChunkArray {
+            data: tx.data[index_start * CHUNK_SIZE..index_end * CHUNK_SIZE].to_vec(),
+            start_index: index_start as u32,
+        }))
+    }
 }
 
 pub struct BatchChunkStore {
@@ -318,7 +337,17 @@ impl SimpleLogStore {
 
 impl LogStoreChunkRead for SimpleLogStore {
     fn get_chunk_by_tx_and_index(&self, tx_seq: u64, index: usize) -> Result<Option<Chunk>> {
-        self.chunk_store.get_chunk_by_tx_and_index(tx_seq, index)
+        let chunk_in_store = self.chunk_store.get_chunk_by_tx_and_index(tx_seq, index)?;
+        if chunk_in_store.is_some() {
+            Ok(chunk_in_store)
+        } else {
+            let chunk_data = try_option!(self.get_chunks_from_tx(tx_seq, index, index + 1)?).data;
+            Ok(Some(Chunk(
+                chunk_data
+                    .try_into()
+                    .expect("checked in get_chunks_from_tx"),
+            )))
+        }
     }
 
     fn get_chunks_by_tx_and_index_range(
@@ -327,8 +356,16 @@ impl LogStoreChunkRead for SimpleLogStore {
         index_start: usize,
         index_end: usize,
     ) -> Result<Option<ChunkArray>> {
-        self.chunk_store
-            .get_chunks_by_tx_and_index_range(tx_seq, index_start, index_end)
+        let chunks_in_store =
+            self.chunk_store
+                .get_chunks_by_tx_and_index_range(tx_seq, index_start, index_end)?;
+        if chunks_in_store.is_some() {
+            Ok(chunks_in_store)
+        } else {
+            // Here we check tx later because we assume it's more common to read not-embedded
+            // chunks.
+            self.get_chunks_from_tx(tx_seq, index_start, index_end)
+        }
     }
 
     fn get_chunk_by_data_root_and_index(
@@ -372,8 +409,21 @@ impl LogStoreChunkWrite for SimpleLogStore {
 }
 
 impl LogStoreWrite for SimpleLogStore {
-    fn put_tx(&self, tx: Transaction) -> Result<()> {
+    fn put_tx(&self, mut tx: Transaction) -> Result<()> {
         let mut db_tx = self.kvdb.transaction();
+
+        if !tx.data.is_empty() {
+            tx.size = tx.data.len() as u64;
+            let mut padded_data = tx.data.clone();
+            let extra = tx.data.len() % CHUNK_SIZE;
+            if extra != 0 {
+                padded_data.append(&mut vec![0u8; CHUNK_SIZE - extra]);
+            }
+            let data_root = sub_merkle_tree(&padded_data)?.root();
+            tx.data_merkle_root = data_root.into();
+            db_tx.put(COL_TX_COMPLETED, &tx.seq.to_be_bytes(), &[0]);
+        }
+
         db_tx.put(COL_TX, &tx.seq.to_be_bytes(), &tx.as_ssz_bytes());
         if self
             .get_tx_seq_by_data_root(&tx.data_merkle_root)?
@@ -385,7 +435,9 @@ impl LogStoreWrite for SimpleLogStore {
                 &tx.seq.to_be_bytes(),
             );
         }
-        self.kvdb.write(db_tx).map_err(Into::into)
+
+        self.kvdb.write(db_tx)?;
+        Ok(())
     }
 
     fn finalize_tx(&self, tx_seq: u64) -> Result<()> {
@@ -397,6 +449,9 @@ impl LogStoreWrite for SimpleLogStore {
             )));
         }
         let tx = maybe_tx.unwrap();
+        if !tx.data.is_empty() {
+            bail!("finalize_tx: tx has embedded data tx_seq={}", tx_seq);
+        }
         if tx.size <= self.chunk_batch_size as u64 * CHUNK_SIZE as u64 {
             // Only one batch, so there is no need for a top tree.
             self.kvdb
@@ -462,7 +517,6 @@ impl LogStoreWrite for SimpleLogStore {
         )?;
         self.kvdb
             .put(COL_TX_COMPLETED, &tx_seq.to_be_bytes(), &[0])?;
-        // TODO: Mark the tx as completed.
         Ok(())
     }
 }

@@ -204,6 +204,25 @@ impl SerialSyncController {
         }
     }
 
+    pub(crate) fn new_completed(
+        tx_seq: u64,
+        data_root: DataRoot,
+        num_chunks: usize,
+        ctx: Arc<SyncNetworkContext>,
+        store: Store,
+    ) -> Self {
+        SerialSyncController {
+            tx_seq,
+            data_root,
+            num_chunks,
+            next_chunk: 0,
+            state: SyncState::Completed,
+            peers: Default::default(),
+            ctx,
+            store,
+        }
+    }
+
     fn publish(&mut self, msg: PubsubMessage) {
         self.ctx.send(NetworkMessage::Publish {
             messages: vec![msg],

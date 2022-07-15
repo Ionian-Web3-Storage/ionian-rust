@@ -352,13 +352,24 @@ impl SyncService {
                     }
                 };
 
-                let c = SerialSyncController::new(
-                    tx_seq,
-                    tx.data_merkle_root,
-                    num_chunks,
-                    self.ctx.clone(),
-                    self.store.clone(),
-                );
+                // TODO(ionian-dev): this is a silent failure, should we notify the caller?
+                let c = if self.store.check_tx_completed(tx_seq).await.unwrap_or(false) {
+                    SerialSyncController::new_completed(
+                        tx_seq,
+                        tx.data_merkle_root,
+                        num_chunks,
+                        self.ctx.clone(),
+                        self.store.clone(),
+                    )
+                } else {
+                    SerialSyncController::new(
+                        tx_seq,
+                        tx.data_merkle_root,
+                        num_chunks,
+                        self.ctx.clone(),
+                        self.store.clone(),
+                    )
+                };
 
                 entry.insert(c)
             }
