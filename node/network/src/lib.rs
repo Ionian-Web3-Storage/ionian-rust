@@ -139,4 +139,6 @@ pub enum NetworkMessage {
     },
     /// Start dialing a new peer.
     DialPeer { address: Multiaddr, peer_id: PeerId },
+    /// Notify that new file stored in db.
+    AnnounceLocalFile { tx_seq: u64 },
 }

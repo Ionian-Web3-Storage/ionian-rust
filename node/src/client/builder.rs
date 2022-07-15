@@ -177,9 +177,10 @@ impl ClientBuilder {
 
         let executor = require!("rpc", self, runtime_context).clone().executor;
         let async_store = require!("rpc", self, async_store).clone();
+        let network_send = require!("rpc", self, network).send.clone();
 
         let (chunk_pool, chunk_pool_handler) =
-            chunk_pool::unbounded(chunk_pool_config, async_store.clone());
+            chunk_pool::unbounded(chunk_pool_config, async_store.clone(), network_send);
 
         let ctx = rpc::Context {
             config: rpc_config,

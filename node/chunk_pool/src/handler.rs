@@ -1,9 +1,10 @@
 use super::mem_pool::MemoryChunkPool;
 use anyhow::Result;
+use network::NetworkMessage;
 use shared_types::DataRoot;
 use std::sync::Arc;
 use storage_async::Store;
-use tokio::sync::mpsc::UnboundedReceiver;
+use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 
 /// Handle the cached file when uploaded completely and verified from blockchain.
 /// Generally, the file will be persisted into log store.
@@ -11,6 +12,7 @@ pub struct ChunkPoolHandler {
     receiver: UnboundedReceiver<DataRoot>,
     mem_pool: Arc<MemoryChunkPool>,
     log_store: Store,
+    sender: UnboundedSender<NetworkMessage>,
 }
 
 impl ChunkPoolHandler {
@@ -18,11 +20,13 @@ impl ChunkPoolHandler {
         receiver: UnboundedReceiver<DataRoot>,
         mem_pool: Arc<MemoryChunkPool>,
         log_store: Store,
+        sender: UnboundedSender<NetworkMessage>,
     ) -> Self {
         ChunkPoolHandler {
             receiver,
             mem_pool,
             log_store,
+            sender,
         }
     }
 
@@ -54,6 +58,16 @@ impl ChunkPoolHandler {
         self.log_store.finalize_tx(file.tx_seq).await?;
 
         debug!("Transaction finalized for seq {}", file.tx_seq);
+
+        let msg = NetworkMessage::AnnounceLocalFile {
+            tx_seq: file.tx_seq,
+        };
+        if let Err(e) = self.sender.send(msg) {
+            error!(
+                "Failed to send NetworkMessage::AnnounceLocalFile message, tx_seq={}, err={}",
+                file.tx_seq, e
+            );
+        }
 
         Ok(true)
     }

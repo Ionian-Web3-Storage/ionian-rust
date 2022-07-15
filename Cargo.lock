@@ -741,6 +741,7 @@ dependencies = [
  "anyhow",
  "async-lock",
  "hashlink 0.8.0",
+ "network",
  "shared_types",
  "storage-async",
  "tokio",
