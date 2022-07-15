@@ -1,3 +1,3 @@
 mod gossip_cache;
 
-pub use gossip_cache::GossipCache;
+pub use crate::gossip_cache::GossipCache;
