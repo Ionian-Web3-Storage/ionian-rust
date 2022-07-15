@@ -403,8 +403,15 @@ impl LogStoreWrite for SimpleLogStore {
                 .put(COL_TX_COMPLETED, &tx_seq.to_be_bytes(), &[0])?;
             return Ok(());
         }
-        let chunk_index_end = (tx.size / CHUNK_SIZE as u64) as usize;
+        let mut chunk_index_end = (tx.size / CHUNK_SIZE as u64) as usize;
+        if tx.size % CHUNK_SIZE as u64 > 0 {
+            chunk_index_end += 1;
+        }
         let mut chunk_batch_roots = Vec::with_capacity(chunk_index_end / self.chunk_batch_size + 1);
+        debug!(
+            "Begin to finalize tx, seq={}, end_index={}",
+            tx_seq, chunk_index_end
+        );
         for (batch_start_index, batch_end_index) in
             batch_iter(0, chunk_index_end, self.chunk_batch_size)
         {
@@ -430,6 +437,13 @@ impl LogStoreWrite for SimpleLogStore {
             let merkle_tree = sub_merkle_tree(&chunks.data)?;
             let merkle_root = merkle_tree.root();
             chunk_batch_roots.push(merkle_root);
+
+            debug!(
+                "Sub tree completed, start={}, end={}, root={}",
+                batch_start_index,
+                batch_end_index,
+                hex::encode(merkle_root)
+            );
         }
         let merkle_tree = TopMerkleTree::new(chunk_batch_roots);
         if merkle_tree.root() != tx.data_merkle_root.0 {

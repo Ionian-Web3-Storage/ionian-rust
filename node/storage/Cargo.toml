@@ -17,8 +17,8 @@ rayon = "1.5.3"
 shared_types = { path = "../shared_types" }
 tracing = "0.1.35"
 typenum = "1.15.0"
+hex = "0.4.3"
 
 [dev-dependencies]
 tempdir = "0.3.7"
 rand = "0.8.5"
-hex = "0.4.3"
