@@ -13,12 +13,6 @@ use tokio::sync::mpsc::UnboundedSender;
 // 1) Uploaded not in sequence: costly to determine if all chunks uploaded, so as to finalize tx in store.
 // 2) Upload concurrently: by one user or different users.
 
-// to avoid OOM
-const MAX_CACHED_CHUNKS_PER_FILE: usize = 1024 * 1024; // 256M
-const MAX_CACHED_CHUNKS_ALL: usize = 1024 * 1024 * 1024 / CHUNK_SIZE; // 1G
-const MAX_WRITINGS: usize = 16;
-const EXPIRATION_TIME: Duration = Duration::from_secs(300); // 5 minutes
-
 /// Used to cache chunks in memory pool and persist into db once log entry
 /// retrieved from blockchain.
 pub struct MemoryCachedFile {
@@ -36,15 +30,15 @@ pub struct MemoryCachedFile {
     expired_at: Instant,
 }
 
-impl Default for MemoryCachedFile {
-    fn default() -> Self {
+impl MemoryCachedFile {
+    fn new(timeout: Duration) -> Self {
         MemoryCachedFile {
             writing: false,
             segments: None,
             next_index: 0,
             total_chunks: 0,
             tx_seq: 0,
-            expired_at: Instant::now().add(EXPIRATION_TIME),
+            expired_at: Instant::now().add(timeout),
         }
     }
 }
@@ -62,8 +56,9 @@ impl MemoryCachedFile {
     }
 }
 
-#[derive(Default)]
 struct Inner {
+    config: Config,
+    expiration_timeout: Duration,
     /// All cached files.
     files: LinkedHashMap<DataRoot, MemoryCachedFile>,
     /// Total number of chunks that cached in the memory pool.
@@ -73,9 +68,20 @@ struct Inner {
 }
 
 impl Inner {
+    fn new(config: Config) -> Self {
+        let expiration_timeout = Duration::from_secs(config.expiration_time_secs);
+        Inner {
+            config,
+            expiration_timeout,
+            files: Default::default(),
+            total_chunks: 0,
+            total_writings: 0,
+        }
+    }
+
     fn update_expiration_time(&mut self, root: &DataRoot) {
         if let Some(file) = self.files.to_back(root) {
-            file.expired_at = Instant::now().add(EXPIRATION_TIME);
+            file.expired_at = Instant::now().add(self.expiration_timeout);
         }
     }
 
@@ -111,7 +117,10 @@ impl Inner {
         start_index: usize,
         maybe_tx: Option<Transaction>,
     ) -> Result<Option<(u64, VecDeque<ChunkArray>)>> {
-        let file = self.files.entry(root).or_insert_with(Default::default);
+        let file = self
+            .files
+            .entry(root)
+            .or_insert_with(|| MemoryCachedFile::new(self.expiration_timeout));
 
         // Segment already uploaded.
         if start_index < file.next_index {
@@ -144,8 +153,11 @@ impl Inner {
         // Prepare segments to write into store when log entry already retrieved.
         if file.total_chunks > 0 {
             // Limits the number of writing threads.
-            if self.total_writings >= MAX_WRITINGS {
-                bail!(anyhow!("too many data writing: {}", MAX_WRITINGS));
+            if self.total_writings >= self.config.max_writings {
+                bail!(anyhow!(
+                    "too many data writing: {}",
+                    self.config.max_writings
+                ));
             }
 
             // Note, do not update the counter of cached chunks in this case.
@@ -164,10 +176,10 @@ impl Inner {
 
         // Limits the cached chunks in the memory pool.
         let num_chunks = segment.len() / CHUNK_SIZE;
-        if self.total_chunks + num_chunks > MAX_CACHED_CHUNKS_ALL {
+        if self.total_chunks + num_chunks > self.config.max_cached_chunks_all {
             bail!(anyhow!(
                 "exceeds the maximum cached chunks of whole pool: {}",
-                MAX_CACHED_CHUNKS_ALL
+                self.config.max_cached_chunks_all
             ));
         }
 
@@ -265,8 +277,8 @@ pub struct MemoryChunkPool {
 impl MemoryChunkPool {
     pub(crate) fn new(config: Config, log_store: Store, sender: UnboundedSender<DataRoot>) -> Self {
         MemoryChunkPool {
-            config,
-            inner: Default::default(),
+            config: config.clone(),
+            inner: Mutex::new(Inner::new(config)),
             log_store,
             sender,
         }
@@ -285,10 +297,10 @@ impl MemoryChunkPool {
 
         // Limits the maximum number of chunks of single file.
         // Note, it suppose that all chunks uploaded in sequence.
-        if chunk_start_index + num_chunks > MAX_CACHED_CHUNKS_PER_FILE {
+        if chunk_start_index + num_chunks > self.config.max_cached_chunks_per_file {
             bail!(anyhow!(
                 "exceeds the maximum cached chunks of single file: {}",
-                MAX_CACHED_CHUNKS_PER_FILE
+                self.config.max_cached_chunks_per_file
             ));
         }
 
