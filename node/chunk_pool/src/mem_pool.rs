@@ -1,3 +1,4 @@
+use crate::Config;
 use anyhow::{anyhow, bail, Result};
 use async_lock::Mutex;
 use hashlink::LinkedHashMap;
@@ -255,14 +256,16 @@ impl Inner {
 /// Caches data chunks in memory before the entire file uploaded to storage node
 /// and data root verified on blockchain.
 pub struct MemoryChunkPool {
+    config: Config,
     inner: Mutex<Inner>,
     log_store: Store,
     sender: UnboundedSender<DataRoot>,
 }
 
 impl MemoryChunkPool {
-    pub(crate) fn new(log_store: Store, sender: UnboundedSender<DataRoot>) -> Self {
+    pub(crate) fn new(config: Config, log_store: Store, sender: UnboundedSender<DataRoot>) -> Self {
         MemoryChunkPool {
+            config,
             inner: Default::default(),
             log_store,
             sender,

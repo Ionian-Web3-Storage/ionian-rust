@@ -1,4 +1,5 @@
 use super::{Client, RuntimeContext};
+use chunk_pool::Config as ChunkPoolConfig;
 use log_entry_sync::{LogSyncConfig, LogSyncManager};
 use miner::{MinerMessage, MinerService};
 use network::{
@@ -165,18 +166,23 @@ impl ClientBuilder {
         Ok(self)
     }
 
-    pub async fn with_rpc(self, config: RPCConfig) -> Result<Self, String> {
-        if !config.enabled {
+    pub async fn with_rpc(
+        self,
+        rpc_config: RPCConfig,
+        chunk_pool_config: ChunkPoolConfig,
+    ) -> Result<Self, String> {
+        if !rpc_config.enabled {
             return Ok(self);
         }
 
         let executor = require!("rpc", self, runtime_context).clone().executor;
         let async_store = require!("rpc", self, async_store).clone();
 
-        let (chunk_pool, chunk_pool_handler) = chunk_pool::unbounded(async_store.clone());
+        let (chunk_pool, chunk_pool_handler) =
+            chunk_pool::unbounded(chunk_pool_config, async_store.clone());
 
         let ctx = rpc::Context {
-            config,
+            config: rpc_config,
             network_globals: self.network.as_ref().map(|network| network.globals.clone()),
             network_send: self.network.as_ref().map(|network| network.send.clone()),
             sync_send: self.sync.as_ref().map(|sync| sync.send.clone()),

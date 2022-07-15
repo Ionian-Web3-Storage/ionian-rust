@@ -24,6 +24,12 @@ build_config! {
     (rpc_listen_address, (String), "127.0.0.1:5678".to_string())
     (rpc_chunks_per_segment, (usize), 1024)
 
+    // chunk pool
+    (chunk_pool_max_cached_chunks_per_file, (usize), 4*1024)    // 1M
+    (chunk_pool_max_cached_chunks_all, (usize), 4*1024*1024)    // 1G
+    (chunk_pool_max_writings, (usize), 16)
+    (chunk_pool_expiration_time_secs, (u64), 300)   // 5 minutes
+
     // misc
     (log_config_file, (String), "log_config".to_string())
 }
