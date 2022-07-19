@@ -30,6 +30,9 @@ build_config! {
     (chunk_pool_max_writings, (usize), 16)
     (chunk_pool_expiration_time_secs, (u64), 300)   // 5 minutes
 
+    // db
+    (db_dir, (String), "db".to_string())
+
     // misc
     (log_config_file, (String), "log_config".to_string())
 }

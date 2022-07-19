@@ -2,8 +2,11 @@
 extern crate tracing;
 use kvdb::KeyValueDB;
 
+pub mod config;
 pub mod error;
 pub mod log_store;
+
+pub use config::Config as StorageConfig;
 
 trait IonianKeyValueDB: KeyValueDB {
     fn put(&self, col: u32, key: &[u8], value: &[u8]) -> std::io::Result<()> {

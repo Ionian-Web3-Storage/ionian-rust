@@ -4,6 +4,7 @@ use crate::IonianConfig;
 use log_entry_sync::{ContractAddress, LogSyncConfig};
 use network::NetworkConfig;
 use rpc::RPCConfig;
+use storage::StorageConfig;
 
 impl IonianConfig {
     pub fn network_config(&self) -> Result<NetworkConfig, String> {
@@ -43,6 +44,12 @@ impl IonianConfig {
         network_config.private = self.network_private;
 
         Ok(network_config)
+    }
+
+    pub fn storage_config(&self) -> Result<StorageConfig, String> {
+        Ok(StorageConfig {
+            db_dir: self.db_dir.clone().into(),
+        })
     }
 
     pub fn rpc_config(&self) -> Result<RPCConfig, String> {

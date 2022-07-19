@@ -7,8 +7,12 @@ network_libp2p_nodes = []
 network_private = false
 network_disable_discovery = false
 
+db_dir = "db"
+
 rpc_enabled = true
 rpc_listen_address = "127.0.0.1:5678"
 
 log_config_file = "log_config"
 
+blockchain_rpc_endpoint = ""
+log_contract_address = ""

@@ -9,6 +9,7 @@ use router::RouterService;
 use rpc::RPCConfig;
 use std::sync::Arc;
 use storage::log_store::{SimpleLogStore, Store};
+use storage::StorageConfig;
 use sync::{SyncSender, SyncService};
 use tokio::sync::mpsc;
 
@@ -83,6 +84,22 @@ impl ClientBuilder {
         let store = Arc::new(
             SimpleLogStore::memorydb()
                 .map_err(|e| format!("Unable to start in-memory store: {:?}", e))?,
+        );
+
+        self.store = Some(store.clone());
+
+        if let Some(ctx) = self.runtime_context.as_ref() {
+            self.async_store = Some(storage_async::Store::new(store, ctx.executor.clone()));
+        }
+
+        Ok(self)
+    }
+
+    /// Initializes RocksDB storage.
+    pub fn with_rocksdb_store(mut self, config: &StorageConfig) -> Result<Self, String> {
+        let store = Arc::new(
+            SimpleLogStore::rocksdb(&config.db_dir)
+                .map_err(|e| format!("Unable to start RocksDB store: {:?}", e))?,
         );
 
         self.store = Some(store.clone());

@@ -12,7 +12,7 @@ use std::{
 };
 use storage_async::Store;
 
-const CHUNK_BATCH_SIZE: usize = 1024;
+const CHUNK_BATCH_SIZE: usize = 2 * 1024;
 
 // TODO(ionian-dev): set an appropriate request size
 const MAX_CHUNKS_TO_REQUEST: usize = CHUNK_BATCH_SIZE;
@@ -392,7 +392,7 @@ impl SerialSyncController {
 
         // unexpected DB error while storing chunks
         if let Err(e) = result {
-            let err = format!("Unexpected DB error while storing chunks: {:?}", e);
+            let err = format!("Unexpected DB error while storing chunks: {e:?}");
             error!("{}", err);
             self.state = SyncState::Failed { reason: err };
             return;
@@ -403,7 +403,13 @@ impl SerialSyncController {
         // check if this is the last chunk
         if self.next_chunk == self.num_chunks {
             // FIXME(ionian-dev): disconnect peer
-            // TODO(ionian-dev): add `finalize_tx` logic
+            if let Err(e) = self.store.finalize_tx(self.tx_seq).await {
+                let err = format!("Unexpected error during finalize_tx: {e:?}");
+                error!("{}", err);
+                self.state = SyncState::Failed { reason: err };
+                return;
+            }
+
             self.state = SyncState::Completed;
             return;
         }

@@ -51,6 +51,7 @@ lazy_static! {
     }
     .as_ssz_bytes()
     .len();
+    // TODO(ionian-dev)
     pub static ref CHUNKS_RESPONSE_MAX: usize = ChunkArrayWithProof {
         chunks: ChunkArray {
             data: vec![0u8; MAX_CHUNKS_LENGTH as usize],
